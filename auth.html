@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>구역관리 — 로그인</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Malgun Gothic', sans-serif;
+      background: #f0f4f8;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px 32px;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    h1 { font-size: 1.3rem; color: #1a1a2e; margin-bottom: 8px; }
+    p.sub { font-size: 0.85rem; color: #888; margin-bottom: 28px; }
+    button {
+      width: 100%; padding: 13px;
+      background: #fff; color: #333;
+      border: 1px solid #ddd; border-radius: 8px;
+      font-size: 0.95rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      transition: box-shadow 0.2s;
+    }
+    button:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    button img { width: 20px; }
+    .err { color: #e74c3c; font-size: 0.85rem; margin-top: 14px; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>⛪ 구역관리 시스템</h1>
+  <p class="sub">구글 계정으로 로그인하세요</p>
+  <button onclick="loginWithGoogle()">
+    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" />
+    Google로 로그인
+  </button>
+  <p class="err" id="err"></p>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getDatabase, ref, get }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDpxfXPW464jphvj2K1uZqzUBEtX0jjiVQ",
+    authDomain: "guri-district-manager.firebaseapp.com",
+    databaseURL: "https://guri-district-manager-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    projectId: "guri-district-manager",
+    storageBucket: "guri-district-manager.firebasestorage.app",
+    messagingSenderId: "414381618941",
+    appId: "1:414381618941:web:5006d9086ef8bcc9ccb094"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getDatabase(app);
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const role = await getRole(user.uid);
+      redirect(role);
+    }
+  });
+
+  async function getRole(uid) {
+    const snap = await get(ref(db, `users/${uid}/role`));
+    return snap.exists() ? snap.val() : null;
+  }
+
+  function redirect(role) {
+    const map = {
+      president: 'president.html',
+      officer:   'officer.html',
+      leader:    'leader.html'
+    };
+    location.href = map[role] || 'unauthorized.html';
+  }
+
+  window.loginWithGoogle = async function() {
+    const err = document.getElementById('err');
+    err.textContent = '';
+    try {
+      const provider = new GoogleAuthProvider();
+      const cred = await signInWithPopup(auth, provider);
+      const role = await getRole(cred.user.uid);
+      if (!role) {
+        err.textContent = '등록되지 않은 계정입니다. 관리자에게 문의하세요.';
+        await auth.signOut();
+        return;
+      }
+      redirect(role);
+    } catch(e) {
+      err.textContent = '로그인 중 오류가 발생했습니다.';
+    }
+  };
+</script>
+</body>
+</html>
