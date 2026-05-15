@@ -32,7 +32,7 @@ let currentTab = 'faith';
 let currentWeekId = getWeekId();
 let currentMonthId = getMonthId();
 let regionsCache = {}, districtsCache = {};
-let faithDistrictId = null; // 신앙관리 탭에서 현재 보고 있는 구역
+let faithDistrictId = null;
 
 // ── 날짜 유틸 ──
 function getWeekId(date) {
@@ -42,35 +42,40 @@ function getWeekId(date) {
   const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
   return `${year}-W${String(week).padStart(2, '0')}`;
 }
-function getMonthId(date) {
-  const d = date ? new Date(date) : new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+function getMonthId() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 }
 function getWeekLabel(weekId) {
   const [y, w] = weekId.split('-W');
   const jan1 = new Date(parseInt(y), 0, 1);
-  const dayOffset = (parseInt(w) - 1) * 7 - jan1.getDay() + 1;
+  const dayOffset = (parseInt(w)-1)*7 - jan1.getDay() + 1;
   const mon = new Date(parseInt(y), 0, dayOffset);
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const sun = new Date(mon); sun.setDate(mon.getDate()+6);
   return `${mon.getMonth()+1}/${mon.getDate()} ~ ${sun.getMonth()+1}/${sun.getDate()}`;
 }
 function shiftWeek(weekId, delta) {
   const [y, w] = weekId.split('-W');
-  let week = parseInt(w) + delta, year = parseInt(y);
+  let week = parseInt(w)+delta, year = parseInt(y);
   if (week < 1) { year--; week = 52; }
   if (week > 52) { year++; week = 1; }
-  return `${year}-W${String(week).padStart(2, '0')}`;
+  return `${year}-W${String(week).padStart(2,'0')}`;
 }
+window.shiftWeek = shiftWeek;
 
-// ── 권한 ──
-const isSA = () => userRole === 'superadmin';
-const isRegionAdmin = () => userRole === 'region_admin' || isSA();
-const isLeader = () => userRole === 'district_leader' || isRegionAdmin();
+// ── 권한 체계 ──
+// superadmin(관리자) > chairman(회장) > region_admin(임원) > district_leader(구역장)
+const ROLE_LABEL = { superadmin:'관리자', chairman:'회장', region_admin:'임원', district_leader:'구역장' };
+const isSA      = () => userRole === 'superadmin';
+const isChairman= () => ['superadmin','chairman'].includes(userRole);
+const isRegion  = () => ['superadmin','chairman','region_admin'].includes(userRole);
+const isLeader  = () => ['superadmin','chairman','region_admin','district_leader'].includes(userRole);
+const canEdit   = () => isLeader();
 
 function showScreen(name) {
-  document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
-  const el = document.getElementById('screen-' + name);
-  if (el) el.style.display = 'flex';
+  document.querySelectorAll('.screen').forEach(s => s.style.display='none');
+  const el = document.getElementById('screen-'+name);
+  if (el) el.style.display='flex';
 }
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -80,36 +85,38 @@ function showToast(msg) {
 
 // ── 인증 ──
 onAuthStateChanged(auth, async user => {
-  if (!user) { currentUser = null; userRole = null; showScreen('login'); return; }
+  if (!user) { currentUser=null; userRole=null; showScreen('login'); return; }
   currentUser = user;
   const uSnap = await get(ref(db, `users/${user.uid}`));
 
   if (!uSnap.exists()) {
-    const allSnap = await get(ref(db, 'users'));
+    const allSnap = await get(ref(db,'users'));
     if (!allSnap.exists()) {
-      // 첫 번째 사용자 = superadmin
-      await set(ref(db, `users/${user.uid}`), {
-        email: user.email, name: user.displayName,
-        nickname: user.displayName, role: 'superadmin', createdAt: Date.now()
+      // 첫 사용자 = superadmin
+      await set(ref(db,`users/${user.uid}`), {
+        email:user.email, name:user.displayName,
+        nickname:user.displayName, role:'superadmin', createdAt:Date.now()
       });
     } else {
-      const emailKey = btoa(user.email).replace(/=/g, '');
-      const wSnap = await get(ref(db, `whitelist/${emailKey}`));
+      // whitelist 확인
+      const emailKey = btoa(user.email).replace(/=/g,'');
+      const wSnap = await get(ref(db,`whitelist/${emailKey}`));
       if (wSnap.exists()) {
         const d = wSnap.val();
-        await set(ref(db, `users/${user.uid}`), {
-          email: user.email, name: user.displayName, nickname: user.displayName,
-          role: d.role, regionId: d.regionId || null, districtId: d.districtId || null,
-          createdAt: Date.now()
+        await set(ref(db,`users/${user.uid}`), {
+          email:user.email, name:user.displayName, nickname:user.displayName,
+          role:d.role, regionId:d.regionId||null, districtId:d.districtId||null, createdAt:Date.now()
         });
       } else {
+        // 가입 신청 화면
+        await loadRegionsForRegister();
         document.getElementById('reg-email').textContent = user.email;
         showScreen('register'); return;
       }
     }
   }
 
-  const uData = (await get(ref(db, `users/${user.uid}`))).val();
+  const uData = (await get(ref(db,`users/${user.uid}`))).val();
   userRole = uData?.role || null;
   userNickname = uData?.nickname || uData?.name || user.displayName || '';
   userRegionId = uData?.regionId || null;
@@ -118,7 +125,7 @@ onAuthStateChanged(auth, async user => {
   if (!userRole) { showScreen('pending'); return; }
 
   const [regSnap, distSnap] = await Promise.all([
-    get(ref(db, 'regions')), get(ref(db, 'districts'))
+    get(ref(db,'regions')), get(ref(db,'districts'))
   ]);
   regionsCache = regSnap.val() || {};
   districtsCache = distSnap.val() || {};
@@ -128,21 +135,46 @@ onAuthStateChanged(auth, async user => {
 
 window.doLogin = async () => {
   try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-  catch (e) { alert('로그인 실패: ' + e.message); }
+  catch(e) { alert('로그인 실패: '+e.message); }
 };
 window.doLogout = async () => await signOut(auth);
+
+// 가입 신청 화면에 지역 목록 로드
+async function loadRegionsForRegister() {
+  const snap = await get(ref(db,'regions'));
+  const regions = snap.val() || {};
+  const sel = document.getElementById('reg-region-select');
+  sel.innerHTML = '<option value="">지역 선택</option>' +
+    Object.entries(regions).map(([rid,r]) => `<option value="${rid}">${r.name}</option>`).join('');
+}
+
+// 역할 선택에 따라 지역 선택 표시/숨김
+window.onRegRoleChange = () => {
+  const role = document.getElementById('reg-role-select').value;
+  document.getElementById('reg-region-row').style.display =
+    role === 'district_leader' ? '' : 'none';
+};
+
 window.submitRegister = async () => {
   const name = document.getElementById('reg-name').value.trim();
+  const role = document.getElementById('reg-role-select').value;
+  const regionId = document.getElementById('reg-region-select').value;
   if (!name) { alert('이름을 입력해주세요'); return; }
-  await set(ref(db, `requests/${currentUser.uid}`), { email: currentUser.email, name, createdAt: Date.now() });
+  if (role === 'district_leader' && !regionId) { alert('소속 지역을 선택해주세요'); return; }
+  await set(ref(db,`requests/${currentUser.uid}`), {
+    email:currentUser.email, name, role, regionId:regionId||null, createdAt:Date.now()
+  });
   showScreen('pending');
 };
 
 // ── 메인 진입 ──
 function enterMain() {
   document.querySelectorAll('.uname').forEach(el => el.textContent = userNickname);
-  document.querySelectorAll('.leader-only').forEach(el => el.style.display = isLeader() ? '' : 'none');
-  document.querySelectorAll('.sa-only').forEach(el => el.style.display = isSA() ? '' : 'none');
+  // 권한별 노출
+  document.querySelectorAll('.leader-only').forEach(el => el.style.display = isLeader()?'':'none');
+  document.querySelectorAll('.region-only').forEach(el => el.style.display = isRegion()?'':'none');
+  document.querySelectorAll('.chairman-only').forEach(el => el.style.display = isChairman()?'':'none');
+  document.querySelectorAll('.sa-only').forEach(el => el.style.display = isSA()?'':'none');
   showScreen('main');
   switchTab('faith');
 }
@@ -151,10 +183,11 @@ window.switchTab = (tab) => {
   currentTab = tab;
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
   document.querySelector(`.tab-btn[data-tab="${tab}"]`).classList.add('active');
-  if (tab === 'faith') initFaithTab();
-  if (tab === 'evang') initEvangTab();
+  if (tab==='faith') initFaithTab();
+  if (tab==='evang') initEvangTab();
+  if (tab==='stats') initStatsTab();
 };
 
 // ════════════════════════
@@ -163,48 +196,54 @@ window.switchTab = (tab) => {
 async function initFaithTab() {
   const el = document.getElementById('faith-content');
 
-  // 구역장은 본인 구역 바로, 임원/회장은 선택
-  if (userDistrictId && !isRegionAdmin()) {
+  // 구역장: 본인 구역 바로
+  if (userRole === 'district_leader') {
     faithDistrictId = userDistrictId;
-    await loadFaithWeek();
-    return;
+    if (!faithDistrictId) {
+      el.innerHTML = '<div class="empty-state"><p>소속 구역이 없습니다<br>임원에게 문의하세요</p></div>';
+      return;
+    }
+    await loadFaithWeek(); return;
   }
-  if (faithDistrictId) {
-    await loadFaithWeek();
-    return;
+
+  // 임원: 소속 지역 구역들만
+  if (userRole === 'region_admin') {
+    if (faithDistrictId) { await loadFaithWeek(); return; }
+    renderDistrictPicker(el, userRegionId, async (did) => {
+      faithDistrictId = did; await loadFaithWeek();
+    }); return;
   }
-  // 구역 선택 UI
-  renderDistrictPicker(el, async (did) => {
-    faithDistrictId = did;
-    await loadFaithWeek();
+
+  // 회장/관리자: 모든 지역/구역
+  if (faithDistrictId) { await loadFaithWeek(); return; }
+  renderDistrictPicker(el, null, async (did) => {
+    faithDistrictId = did; await loadFaithWeek();
   });
 }
 
-function renderDistrictPicker(el, callback) {
+function renderDistrictPicker(el, filterRegionId, callback) {
   const byRegion = {};
   Object.entries(districtsCache).forEach(([did, d]) => {
+    if (filterRegionId && d.regionId !== filterRegionId) return;
     if (!byRegion[d.regionId]) byRegion[d.regionId] = [];
-    byRegion[d.regionId].push({ did, name: d.name });
+    byRegion[d.regionId].push({ did, name:d.name });
   });
 
   if (!Object.keys(byRegion).length) {
-    el.innerHTML = '<div class="empty-state"><p>등록된 구역이 없습니다<br>설정에서 구역을 추가해주세요</p></div>';
+    el.innerHTML = '<div class="empty-state"><p>구역이 없습니다<br>설정에서 구역을 추가해주세요</p></div>';
     return;
   }
-
-  el.innerHTML = `
-    <div style="padding:20px 16px">
-      <div class="section-label">📌 구역 선택</div>
-      ${Object.entries(byRegion).map(([rid, dists]) => `
-        <div class="region-group">
-          <div class="region-group-title">${regionsCache[rid]?.name || '지역'}</div>
-          <div class="district-btn-row">
-            ${dists.map(d => `<button class="district-pick-btn" onclick="pickDistrict('${d.did}')">${d.name}</button>`).join('')}
-          </div>
-        </div>`).join('')}
-    </div>`;
-
-  window.pickDistrict = callback;
+  el.innerHTML = `<div style="padding:20px 16px">
+    <div class="section-label">구역 선택</div>
+    ${Object.entries(byRegion).map(([rid, dists]) => `
+      <div class="region-group">
+        <div class="region-group-title">${regionsCache[rid]?.name||'지역'}</div>
+        <div class="district-btn-row">
+          ${dists.map(d => `<button class="district-pick-btn" onclick="pickDist_faith('${d.did}')">${d.name}</button>`).join('')}
+        </div>
+      </div>`).join('')}
+  </div>`;
+  window.pickDist_faith = callback;
 }
 
 async function loadFaithWeek() {
@@ -214,42 +253,44 @@ async function loadFaithWeek() {
   const isCurrentWeek = currentWeekId === getWeekId();
 
   const [membersSnap, weekSnap, monthSnap] = await Promise.all([
-    get(ref(db, `members/${did}`)),
-    get(ref(db, `weekly/${did}/${currentWeekId}`)),
-    get(ref(db, `monthly/${did}/${currentMonthId}`))
+    get(ref(db,`members/${did}`)),
+    get(ref(db,`weekly/${did}/${currentWeekId}`)),
+    get(ref(db,`monthly/${did}/${currentMonthId}`))
   ]);
 
-  const members = membersSnap.val() || {};
-  const weekData = weekSnap.val() || {};
-  const monthData = monthSnap.val() || {};
-  const dName = districtsCache[did]?.name || '구역';
+  const members = membersSnap.val()||{};
+  const weekData = weekSnap.val()||{};
+  const monthData = monthSnap.val()||{};
+  const dName = districtsCache[did]?.name||'구역';
+  const rName = regionsCache[districtsCache[did]?.regionId]?.name||'';
 
   const activeMembers = Object.entries(members)
-    .filter(([, m]) => m.isActive !== false)
-    .sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+    .filter(([,m]) => m.isActive !== false)
+    .sort((a,b) => (a[1].order||0)-(b[1].order||0));
 
-  const backBtn = isRegionAdmin()
-    ? `<button class="btn btn-sm btn-ghost" onclick="faithDistrictId=null;initFaithTab()">← 목록</button>` : '';
+  const backBtn = (isRegion() && userRole !== 'district_leader')
+    ? `<button class="icon-btn" onclick="faithDistrictId=null;initFaithTab()">← 목록</button>` : '';
 
   if (!activeMembers.length) {
     el.innerHTML = `
-      <div class="faith-topbar">${backBtn}<div class="faith-title">${dName}</div>
+      <div class="faith-topbar">${backBtn}
+        <div class="faith-title">${rName ? rName+' · ' : ''}${dName}</div>
         <button class="btn btn-sm leader-only" onclick="openMemberModal('${did}')">＋ 구역원</button>
       </div>
-      <div class="empty-state"><p>등록된 구역원이 없습니다<br>구역원을 추가해주세요!</p></div>`;
+      <div class="empty-state"><p>구역원이 없습니다<br>＋ 버튼으로 추가해주세요</p></div>`;
     return;
   }
 
   el.innerHTML = `
     <div class="faith-topbar">
       ${backBtn}
-      <div class="faith-title">${dName}</div>
-      <div style="display:flex;gap:5px;align-items:center">
+      <div class="faith-title">${rName ? rName+' · ' : ''}${dName}</div>
+      <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
         <button class="icon-btn" onclick="currentWeekId=shiftWeek(currentWeekId,-1);loadFaithWeek()">◀</button>
         <span class="week-badge">${getWeekLabel(currentWeekId)}</span>
         <button class="icon-btn" onclick="currentWeekId=shiftWeek(currentWeekId,1);loadFaithWeek()" ${isCurrentWeek?'disabled':''}>▶</button>
+        <button class="btn btn-sm leader-only" onclick="openMemberModal('${did}')">＋</button>
       </div>
-      <button class="btn btn-sm leader-only" onclick="openMemberModal('${did}')">＋</button>
     </div>
     <div class="table-scroll">
       <table class="faith-table">
@@ -261,8 +302,8 @@ async function loadFaithWeek() {
             <th class="col-chk" title="청년모임">모임</th>
             <th class="col-chk" title="지정교육">교육</th>
             <th class="col-chk" title="주정헌금">주정</th>
-            <th class="col-chk col-monthly" title="십일조 (월간)">십일</th>
-            <th class="col-chk col-monthly" title="건축헌금 (월간)">건축</th>
+            <th class="col-chk col-monthly" title="십일조(월간)">십일</th>
+            <th class="col-chk col-monthly" title="건축헌금(월간)">건축</th>
             <th class="col-goal">이번 주 목표</th>
           </tr>
         </thead>
@@ -275,45 +316,41 @@ async function loadFaithWeek() {
 
   const tbody = document.getElementById('faith-tbody');
   activeMembers.forEach(([mid, member]) => {
-    const w = weekData[mid] || {};
-    const m = monthData[mid] || {};
-    const att = w.attendance || {};
-    const meet = w.meeting || {};
-    const edu = w.education || {};
-    const wOff = w.offering || {};
-    const mOff = m.offering || {};
-    const goal = w.goal || {};
-
-    const c = v => v ? 'checked' : '';
-    const chk = v => v ? '✓' : '';
+    const w = weekData[mid]||{};
+    const m = monthData[mid]||{};
+    const att = w.attendance||{};
+    const meet = w.meeting||{};
+    const edu = w.education||{};
+    const wOff = w.offering||{};
+    const mOff = m.offering||{};
+    const goal = w.goal||{};
+    const c = v => v?'checked':'';
+    const chk = v => v?'✓':'';
+    const editable = canEdit() ? '' : 'readonly';
 
     const prevGoalHtml = goal.prevText ? `
-      <div class="prev-goal ${goal.prevAchieved ? 'goal-ok' : 'goal-pending'}"
-           onclick="toggleAchieved('${did}','${mid}')" title="클릭해서 달성여부 변경">
-        <span>${goal.prevAchieved ? '✅' : '○'}</span>
+      <div class="prev-goal ${goal.prevAchieved?'goal-ok':'goal-pending'}"
+           onclick="${canEdit()?`toggleAchieved('${did}','${mid}')`:''}"
+           title="${canEdit()?'클릭해서 달성여부 변경':''}">
+        <span>${goal.prevAchieved?'✅':'○'}</span>
         <span class="prev-text">${goal.prevText}</span>
       </div>` : '';
 
     const tr = document.createElement('tr');
-    tr.className = 'faith-row';
-    tr.dataset.mid = mid;
+    tr.className='faith-row'; tr.dataset.mid=mid;
     tr.innerHTML = `
-      <td class="col-name-td">
-        <span class="member-name-cell">${member.name}</span>
-      </td>
-      <td class="col-chk-td ${c(att.inPerson)}" onclick="toggle('${did}','${mid}','att_inPerson')">${chk(att.inPerson)}</td>
-      <td class="col-chk-td ${c(att.zoom)}" onclick="toggle('${did}','${mid}','att_zoom')">${chk(att.zoom)}</td>
-      <td class="col-chk-td ${c(meet.youth)}" onclick="toggle('${did}','${mid}','meet_youth')">${chk(meet.youth)}</td>
-      <td class="col-chk-td ${c(edu.assigned)}" onclick="toggle('${did}','${mid}','edu_assigned')">${chk(edu.assigned)}</td>
-      <td class="col-chk-td ${c(wOff.weekly)}" onclick="toggle('${did}','${mid}','woff_weekly')">${chk(wOff.weekly)}</td>
-      <td class="col-chk-td col-monthly-td ${c(mOff.tithe)}" onclick="toggleMonthly('${did}','${mid}','tithe')">${chk(mOff.tithe)}</td>
-      <td class="col-chk-td col-monthly-td ${c(mOff.construction)}" onclick="toggleMonthly('${did}','${mid}','construction')">${chk(mOff.construction)}</td>
+      <td class="col-name-td"><span class="member-name-cell">${member.name}</span></td>
+      <td class="col-chk-td ${c(att.inPerson)}" onclick="${canEdit()?`toggle('${did}','${mid}','att_inPerson')`:''}">${chk(att.inPerson)}</td>
+      <td class="col-chk-td ${c(att.zoom)}" onclick="${canEdit()?`toggle('${did}','${mid}','att_zoom')`:''}">${chk(att.zoom)}</td>
+      <td class="col-chk-td ${c(meet.youth)}" onclick="${canEdit()?`toggle('${did}','${mid}','meet_youth')`:''}">${chk(meet.youth)}</td>
+      <td class="col-chk-td ${c(edu.assigned)}" onclick="${canEdit()?`toggle('${did}','${mid}','edu_assigned')`:''}">${chk(edu.assigned)}</td>
+      <td class="col-chk-td ${c(wOff.weekly)}" onclick="${canEdit()?`toggle('${did}','${mid}','woff_weekly')`:''}">${chk(wOff.weekly)}</td>
+      <td class="col-chk-td col-monthly-td ${c(mOff.tithe)}" onclick="${canEdit()?`toggleMonthly('${did}','${mid}','tithe')`:''}">${chk(mOff.tithe)}</td>
+      <td class="col-chk-td col-monthly-td ${c(mOff.construction)}" onclick="${canEdit()?`toggleMonthly('${did}','${mid}','construction')`:''}">${chk(mOff.construction)}</td>
       <td class="col-goal-td">
         ${prevGoalHtml}
         <input class="goal-input" type="text"
-          value="${goal.text || ''}"
-          placeholder="목표 입력…"
-          ${!isLeader() ? 'readonly' : ''}
+          value="${goal.text||''}" placeholder="목표 입력…" ${editable}
           onblur="saveGoal('${did}','${mid}',this.value)"
           onkeydown="if(event.key==='Enter')this.blur()">
       </td>`;
@@ -321,96 +358,84 @@ async function loadFaithWeek() {
   });
 }
 
-// 주간 체크 필드 매핑
 const FIELD_MAP = {
-  att_inPerson: 'attendance/inPerson',
-  att_zoom: 'attendance/zoom',
-  meet_youth: 'meeting/youth',
-  edu_assigned: 'education/assigned',
-  woff_weekly: 'offering/weekly'
+  att_inPerson:'attendance/inPerson', att_zoom:'attendance/zoom',
+  meet_youth:'meeting/youth', edu_assigned:'education/assigned', woff_weekly:'offering/weekly'
 };
 
 window.toggle = async (did, mid, key) => {
-  if (!isLeader()) return;
-  const dbPath = `weekly/${did}/${currentWeekId}/${mid}/${FIELD_MAP[key]}`;
-  const snap = await get(ref(db, dbPath));
-  await set(ref(db, dbPath), !snap.val());
+  const p = `weekly/${did}/${currentWeekId}/${mid}/${FIELD_MAP[key]}`;
+  const s = await get(ref(db,p));
+  await set(ref(db,p), !s.val());
   await loadFaithWeek();
 };
-
 window.toggleMonthly = async (did, mid, field) => {
-  if (!isLeader()) return;
-  const dbPath = `monthly/${did}/${currentMonthId}/${mid}/offering/${field}`;
-  const snap = await get(ref(db, dbPath));
-  await set(ref(db, dbPath), !snap.val());
+  const p = `monthly/${did}/${currentMonthId}/${mid}/offering/${field}`;
+  const s = await get(ref(db,p));
+  await set(ref(db,p), !s.val());
   await loadFaithWeek();
 };
-
 window.toggleAchieved = async (did, mid) => {
-  if (!isLeader()) return;
-  const dbPath = `weekly/${did}/${currentWeekId}/${mid}/goal/prevAchieved`;
-  const snap = await get(ref(db, dbPath));
-  await set(ref(db, dbPath), !snap.val());
+  const p = `weekly/${did}/${currentWeekId}/${mid}/goal/prevAchieved`;
+  const s = await get(ref(db,p));
+  await set(ref(db,p), !s.val());
   await loadFaithWeek();
 };
-
 window.saveGoal = async (did, mid, value) => {
-  if (!isLeader()) return;
-  await set(ref(db, `weekly/${did}/${currentWeekId}/${mid}/goal/text`), value.trim());
+  if (!canEdit()) return;
+  await set(ref(db,`weekly/${did}/${currentWeekId}/${mid}/goal/text`), value.trim());
 };
+window.loadFaithWeek = loadFaithWeek;
 
-// 새 주차 생성 시 이전 목표 자동 이월
-window.createNextWeek = async (did) => {
-  const nextWeekId = shiftWeek(currentWeekId, 1);
-  const curSnap = await get(ref(db, `weekly/${did}/${currentWeekId}`));
-  const curData = curSnap.val() || {};
+// ════════════════════════
+// ── 전도 탭 ──
+// ════════════════════════
+function initEvangTab() {
+  document.getElementById('evang-content').innerHTML = `
+    <div class="empty-state" style="min-height:320px">
+      <div style="font-size:2.5rem;margin-bottom:14px">🌱</div>
+      <p style="line-height:1.9">전도 관리 탭<br>다음 버전에 추가될 예정이에요!</p>
+    </div>`;
+}
 
-  const updates = {};
-  Object.entries(curData).forEach(([mid, data]) => {
-    const curGoalText = data?.goal?.text || '';
-    if (curGoalText) {
-      updates[`weekly/${did}/${nextWeekId}/${mid}/goal/prevText`] = curGoalText;
-      updates[`weekly/${did}/${nextWeekId}/${mid}/goal/prevAchieved`] = false;
-    }
-  });
-
-  if (Object.keys(updates).length) {
-    await update(ref(db), updates);
-    showToast('✅ 다음 주차로 목표가 이월됐어요');
-  }
-  currentWeekId = nextWeekId;
-  currentMonthId = getMonthId();
-  await loadFaithWeek();
-};
-
-window.shiftWeek = shiftWeek;
+// ════════════════════════
+// ── 통계 탭 ──
+// ════════════════════════
+function initStatsTab() {
+  document.getElementById('stats-content').innerHTML = `
+    <div class="empty-state" style="min-height:320px">
+      <div style="font-size:2.5rem;margin-bottom:14px">📊</div>
+      <p style="line-height:1.9">통계 · 대시보드<br>다음 버전에 추가될 예정이에요!</p>
+    </div>`;
+}
 
 // ════════════════════════
 // ── 구역원 관리 ──
 // ════════════════════════
 window.openMemberModal = async (did) => {
-  const snap = await get(ref(db, `members/${did}`));
-  const members = snap.val() || {};
-  const list = Object.entries(members).sort((a, b) => (a[1].order||0) - (b[1].order||0));
+  if (!did) { showToast('구역을 먼저 선택해주세요'); return; }
+  const snap = await get(ref(db,`members/${did}`));
+  const members = snap.val()||{};
+  const list = Object.entries(members).sort((a,b)=>(a[1].order||0)-(b[1].order||0));
 
   document.getElementById('member-list').innerHTML = list.length
-    ? list.map(([mid, m]) => `
-        <div class="user-row ${m.isActive === false ? 'row-inactive' : ''}">
+    ? list.map(([mid,m]) => `
+        <div class="user-row ${m.isActive===false?'row-inactive':''}">
           <div class="user-info">
             <div class="user-name">${m.name}</div>
-            <div class="user-sub">${m.phone || '연락처 없음'}</div>
+            <div class="user-sub">${m.phone||'연락처 없음'}</div>
           </div>
           <div style="display:flex;gap:5px">
             <button class="btn-xs" onclick="toggleActive('${did}','${mid}',${m.isActive!==false})">
-              ${m.isActive !== false ? '비활성' : '활성'}
+              ${m.isActive!==false?'비활성':'활성'}
             </button>
             <button class="btn-danger-xs" onclick="deleteMember('${did}','${mid}')">삭제</button>
           </div>
         </div>`).join('')
     : '<div style="text-align:center;padding:16px;color:var(--muted);font-size:.83rem">구역원이 없습니다</div>';
 
-  document.getElementById('inp-member-name').value = '';
-  document.getElementById('inp-member-phone').value = '';
+  document.getElementById('inp-member-name').value='';
+  document.getElementById('inp-member-phone').value='';
   document.getElementById('modal-member').dataset.did = did;
   document.getElementById('modal-member').classList.add('show');
 };
@@ -421,41 +446,29 @@ window.addMember = async () => {
   const name = document.getElementById('inp-member-name').value.trim();
   const phone = document.getElementById('inp-member-phone').value.trim();
   if (!name) { alert('이름을 입력해주세요'); return; }
-  const snap = await get(ref(db, `members/${did}`));
-  const order = Object.keys(snap.val() || {}).length;
-  const r = push(ref(db, `members/${did}`));
-  await set(r, { name, phone, isActive: true, order, joinedAt: Date.now() });
+  const snap = await get(ref(db,`members/${did}`));
+  const order = Object.keys(snap.val()||{}).length;
+  const r = push(ref(db,`members/${did}`));
+  await set(r, {name, phone, isActive:true, order, joinedAt:Date.now()});
   showToast('✅ 구역원 추가됐어요');
   openMemberModal(did);
 };
-
 window.toggleActive = async (did, mid, current) => {
-  await update(ref(db, `members/${did}/${mid}`), { isActive: !current });
+  await update(ref(db,`members/${did}/${mid}`), {isActive:!current});
   openMemberModal(did);
 };
-
 window.deleteMember = async (did, mid) => {
   if (!confirm('정말 삭제할까요?')) return;
-  await remove(ref(db, `members/${did}/${mid}`));
+  await remove(ref(db,`members/${did}/${mid}`));
   showToast('삭제됐어요');
   openMemberModal(did);
 };
 
 // ════════════════════════
-// ── 전도 탭 (v2 예정) ──
-// ════════════════════════
-function initEvangTab() {
-  document.getElementById('evang-content').innerHTML = `
-    <div class="empty-state" style="min-height:320px">
-      <div style="font-size:2.5rem;margin-bottom:14px">🚧</div>
-      <p style="line-height:1.9">전도 관리 탭은<br>다음 버전에 추가될 예정이에요!</p>
-    </div>`;
-}
-
-// ════════════════════════
 // ── 설정 탭 ──
 // ════════════════════════
-// 멤버 관리
+
+// 멤버·승인 관리
 window.openUserMgmt = async () => {
   await loadUserList();
   document.getElementById('modal-users').classList.add('show');
@@ -464,84 +477,98 @@ window.closeUserMgmt = () => document.getElementById('modal-users').classList.re
 
 async function loadUserList() {
   const [uSnap, rSnap] = await Promise.all([
-    get(ref(db, 'users')), get(ref(db, 'requests'))
+    get(ref(db,'users')), get(ref(db,'requests'))
   ]);
-  const users = uSnap.val() || {};
-  const reqs = rSnap.val() || {};
-  const dists = districtsCache;
+  const users = uSnap.val()||{};
+  const reqs = rSnap.val()||{};
 
-  const roleLabel = { superadmin: '회장', region_admin: '임원', district_leader: '구역장', member: '구역원' };
+  // 임원은 자기 지역 구역장 신청만 보임, 회장/관리자는 전체
+  const visibleReqs = Object.entries(reqs).filter(([,u]) => {
+    if (isChairman()) return true;
+    if (userRole==='region_admin') return u.regionId === userRegionId;
+    return false;
+  });
 
-  const reqHtml = Object.keys(reqs).length ? `
-    <div class="section-label danger-label">⏳ 승인 대기 (${Object.keys(reqs).length})</div>
-    ${Object.entries(reqs).map(([uid, u]) => `
+  const reqHtml = visibleReqs.length ? `
+    <div class="section-label danger-label">⏳ 승인 대기 (${visibleReqs.length})</div>
+    ${visibleReqs.map(([uid,u]) => `
       <div class="user-row">
         <div class="user-info">
-          <div class="user-name">${u.name || uid}</div>
-          <div class="user-sub">${u.email || ''}</div>
+          <div class="user-name">${u.name||uid}</div>
+          <div class="user-sub">${u.email||''} · ${ROLE_LABEL[u.role]||u.role} · ${regionsCache[u.regionId]?.name||''}</div>
         </div>
         <div class="user-actions">
-          <select id="req-role-${uid}" class="small-select">
-            <option value="district_leader">구역장</option>
-            <option value="region_admin">임원</option>
-            <option value="member">구역원</option>
-          </select>
-          <button class="btn-xs" onclick="approveUser('${uid}')">수락</button>
+          ${isChairman() ? `
+            <select id="req-role-${uid}" class="small-select">
+              <option value="district_leader" ${u.role==='district_leader'?'selected':''}>구역장</option>
+              <option value="region_admin" ${u.role==='region_admin'?'selected':''}>임원</option>
+            </select>` : ''}
+          <button class="btn-xs" onclick="approveUser('${uid}','${u.regionId||''}')">수락</button>
           <button class="btn-danger-xs" onclick="rejectUser('${uid}')">거절</button>
         </div>
       </div>`).join('')}` : '';
 
-  const userHtml = Object.entries(users).map(([uid, u]) => `
+  // 임원은 자기 지역 구역장만, 회장/관리자는 전체
+  const visibleUsers = Object.entries(users).filter(([,u]) => {
+    if (isChairman()) return true;
+    if (userRole==='region_admin') return u.regionId===userRegionId;
+    return false;
+  });
+
+  const userHtml = visibleUsers.map(([uid,u]) => `
     <div class="user-row">
       <div class="user-info">
-        <div class="user-name">${u.nickname || u.name || uid}</div>
-        <div class="user-sub">${u.email || ''} · ${dists[u.districtId]?.name || '미배정'}</div>
+        <div class="user-name">${u.nickname||u.name||uid}</div>
+        <div class="user-sub">${regionsCache[u.regionId]?.name||''} · ${districtsCache[u.districtId]?.name||'미배정'}</div>
       </div>
-      ${isSA() ? `
+      ${isChairman() ? `
         <div class="user-actions">
           <select class="small-select" onchange="changeRole('${uid}',this.value)">
             <option value="district_leader" ${u.role==='district_leader'?'selected':''}>구역장</option>
             <option value="region_admin" ${u.role==='region_admin'?'selected':''}>임원</option>
-            <option value="superadmin" ${u.role==='superadmin'?'selected':''}>회장</option>
-            <option value="member" ${u.role==='member'?'selected':''}>구역원</option>
+            <option value="chairman" ${u.role==='chairman'?'selected':''}>회장</option>
+            <option value="superadmin" ${u.role==='superadmin'?'selected':''}>관리자</option>
           </select>
           <button class="btn-danger-xs" onclick="removeUser('${uid}')">삭제</button>
-        </div>` : `<span class="role-badge">${roleLabel[u.role] || u.role}</span>`}
+        </div>` : `<span class="role-badge">${ROLE_LABEL[u.role]||u.role}</span>`}
     </div>`).join('');
 
   document.getElementById('user-list').innerHTML =
-    reqHtml + `<div class="section-label" style="margin-top:12px">👥 멤버</div>` + userHtml;
+    reqHtml +
+    `<div class="section-label" style="margin-top:12px">👥 멤버</div>` +
+    (userHtml||'<div style="padding:12px;color:var(--muted);font-size:.83rem">없음</div>');
 }
 
-window.approveUser = async (uid) => {
-  const role = document.getElementById(`req-role-${uid}`)?.value || 'district_leader';
-  const snap = await get(ref(db, `requests/${uid}`));
+window.approveUser = async (uid, regionId) => {
+  const roleEl = document.getElementById(`req-role-${uid}`);
+  const role = roleEl ? roleEl.value : 'district_leader';
+  const snap = await get(ref(db,`requests/${uid}`));
   if (!snap.exists()) { await loadUserList(); return; }
   const u = snap.val();
-  await set(ref(db, `users/${uid}`), {
-    email: u.email || '', name: u.name || '', nickname: u.name || '',
-    role, createdAt: Date.now()
+  await set(ref(db,`users/${uid}`), {
+    email:u.email||'', name:u.name||'', nickname:u.name||'',
+    role, regionId:u.regionId||regionId||null, createdAt:Date.now()
   });
-  await remove(ref(db, `requests/${uid}`));
+  await remove(ref(db,`requests/${uid}`));
   showToast('✅ 승인됐어요');
   await loadUserList();
 };
 window.rejectUser = async (uid) => {
   if (!confirm('거절할까요?')) return;
-  await remove(ref(db, `requests/${uid}`));
+  await remove(ref(db,`requests/${uid}`));
   loadUserList();
 };
 window.changeRole = async (uid, role) => {
-  await update(ref(db, `users/${uid}`), { role });
+  await update(ref(db,`users/${uid}`), {role});
   showToast('권한 변경됐어요');
 };
 window.removeUser = async (uid) => {
   if (!confirm('삭제할까요?')) return;
-  await remove(ref(db, `users/${uid}`));
+  await remove(ref(db,`users/${uid}`));
   loadUserList();
 };
 
-// 구역 배정 모달
+// 구역 배정
 window.openAssignModal = async () => {
   await loadAssignList();
   document.getElementById('modal-assign').classList.add('show');
@@ -550,37 +577,41 @@ window.closeAssignModal = () => document.getElementById('modal-assign').classLis
 
 async function loadAssignList() {
   const [regSnap, distSnap, userSnap] = await Promise.all([
-    get(ref(db, 'regions')), get(ref(db, 'districts')), get(ref(db, 'users'))
+    get(ref(db,'regions')), get(ref(db,'districts')), get(ref(db,'users'))
   ]);
-  regionsCache = regSnap.val() || {};
-  districtsCache = distSnap.val() || {};
-  const users = userSnap.val() || {};
+  regionsCache = regSnap.val()||{};
+  districtsCache = distSnap.val()||{};
+  const users = userSnap.val()||{};
 
-  const distOpts = Object.entries(districtsCache).map(([did, d]) =>
-    `<option value="${did}">${d.name}</option>`).join('');
+  // 임원은 자기 지역 구역들만
+  const myDists = Object.entries(districtsCache).filter(([,d]) =>
+    isChairman() || d.regionId===userRegionId);
+  const distOpts = myDists.map(([did,d]) =>
+    `<option value="${did}">${regionsCache[d.regionId]?.name||''} ${d.name}</option>`).join('');
 
-  const html = Object.entries(users)
-    .filter(([, u]) => ['district_leader','region_admin','member'].includes(u.role))
-    .map(([uid, u]) => `
-      <div class="user-row">
-        <div class="user-info">
-          <div class="user-name">${u.nickname || u.name}</div>
-          <div class="user-sub">현재: ${districtsCache[u.districtId]?.name || '미배정'}</div>
-        </div>
-        <select class="small-select" onchange="assignDistrict('${uid}',this.value)">
-          <option value="">미배정</option>${distOpts}
-        </select>
-      </div>`).join('');
+  const targetUsers = Object.entries(users).filter(([,u]) =>
+    u.role==='district_leader' && (isChairman() || u.regionId===userRegionId));
 
-  document.getElementById('assign-list').innerHTML = html || '<div style="padding:12px;color:var(--muted);font-size:.83rem">없음</div>';
+  const html = targetUsers.map(([uid,u]) => `
+    <div class="user-row">
+      <div class="user-info">
+        <div class="user-name">${u.nickname||u.name}</div>
+        <div class="user-sub">현재: ${districtsCache[u.districtId]?.name||'미배정'}</div>
+      </div>
+      <select class="small-select" onchange="assignDistrict('${uid}',this.value)">
+        <option value="">미배정</option>${distOpts}
+      </select>
+    </div>`).join('');
+
+  document.getElementById('assign-list').innerHTML = html ||
+    '<div style="padding:12px;color:var(--muted);font-size:.83rem">배정할 구역장이 없습니다</div>';
 }
-
 window.assignDistrict = async (uid, did) => {
-  await update(ref(db, `users/${uid}`), { districtId: did || null });
+  await update(ref(db,`users/${uid}`), {districtId:did||null});
   showToast('✅ 배정됐어요');
 };
 
-// 지역/구역 관리
+// 지역·구역 관리
 window.openDistrictMgmt = async () => {
   await loadDistrictMgmt();
   document.getElementById('modal-districts').classList.add('show');
@@ -589,83 +620,96 @@ window.closeDistrictMgmt = () => document.getElementById('modal-districts').clas
 
 async function loadDistrictMgmt() {
   const [regSnap, distSnap] = await Promise.all([
-    get(ref(db, 'regions')), get(ref(db, 'districts'))
+    get(ref(db,'regions')), get(ref(db,'districts'))
   ]);
-  regionsCache = regSnap.val() || {};
-  districtsCache = distSnap.val() || {};
+  regionsCache = regSnap.val()||{};
+  districtsCache = distSnap.val()||{};
 
   const regSel = document.getElementById('sel-new-dist-region');
-  regSel.innerHTML = Object.entries(regionsCache).map(([rid, r]) =>
-    `<option value="${rid}">${r.name}</option>`).join('') || '<option value="">먼저 지역을 추가하세요</option>';
+  regSel.innerHTML = Object.entries(regionsCache)
+    .map(([rid,r]) => `<option value="${rid}">${r.name}</option>`).join('') ||
+    '<option value="">먼저 지역을 추가하세요</option>';
 
-  const html = Object.entries(districtsCache).map(([did, d]) => `
+  const regHtml = Object.entries(regionsCache).map(([rid,r]) => `
+    <div class="user-row">
+      <div class="user-info"><div class="user-name">${r.name}</div></div>
+      <button class="btn-danger-xs" onclick="deleteRegion('${rid}')">삭제</button>
+    </div>`).join('');
+
+  const distHtml = Object.entries(districtsCache).map(([did,d]) => `
     <div class="user-row">
       <div class="user-info">
         <div class="user-name">${d.name}</div>
-        <div class="user-sub">${regionsCache[d.regionId]?.name || '?'}</div>
+        <div class="user-sub">${regionsCache[d.regionId]?.name||'?'}</div>
       </div>
       <button class="btn-danger-xs" onclick="deleteDistrict('${did}')">삭제</button>
     </div>`).join('');
 
-  document.getElementById('district-list').innerHTML = html || '<div style="padding:12px;color:var(--muted);font-size:.83rem">구역 없음</div>';
+  document.getElementById('region-list').innerHTML = regHtml ||
+    '<div style="padding:8px;color:var(--muted);font-size:.8rem">없음</div>';
+  document.getElementById('district-list').innerHTML = distHtml ||
+    '<div style="padding:8px;color:var(--muted);font-size:.8rem">없음</div>';
 }
 
 window.addRegion = async () => {
   const name = document.getElementById('inp-region-name').value.trim();
   if (!name) return;
-  const r = push(ref(db, 'regions'));
-  await set(r, { name });
-  document.getElementById('inp-region-name').value = '';
+  const r = push(ref(db,'regions'));
+  await set(r, {name});
+  document.getElementById('inp-region-name').value='';
   showToast('✅ 지역 추가됐어요');
+  loadDistrictMgmt();
+};
+window.deleteRegion = async (rid) => {
+  if (!confirm('삭제할까요?')) return;
+  await remove(ref(db,`regions/${rid}`));
   loadDistrictMgmt();
 };
 window.addDistrict = async () => {
   const name = document.getElementById('inp-dist-name').value.trim();
   const regionId = document.getElementById('sel-new-dist-region').value;
-  if (!name || !regionId) { alert('이름과 지역을 선택해주세요'); return; }
-  const r = push(ref(db, 'districts'));
-  await set(r, { name, regionId });
-  document.getElementById('inp-dist-name').value = '';
+  if (!name||!regionId) { alert('이름과 지역을 선택해주세요'); return; }
+  const r = push(ref(db,'districts'));
+  await set(r, {name, regionId});
+  document.getElementById('inp-dist-name').value='';
   showToast('✅ 구역 추가됐어요');
   loadDistrictMgmt();
 };
 window.deleteDistrict = async (did) => {
   if (!confirm('삭제할까요?')) return;
-  await remove(ref(db, `districts/${did}`));
+  await remove(ref(db,`districts/${did}`));
   loadDistrictMgmt();
 };
 
 // 닉네임
 window.openNickModal = () => {
-  document.getElementById('inp-nickname').value = userNickname;
+  document.getElementById('inp-nickname').value=userNickname;
   document.getElementById('modal-nickname').classList.add('show');
 };
 window.closeNickModal = () => document.getElementById('modal-nickname').classList.remove('show');
 window.saveNickname = async () => {
   const nn = document.getElementById('inp-nickname').value.trim();
   if (!nn) return;
-  await update(ref(db, `users/${currentUser.uid}`), { nickname: nn });
-  userNickname = nn;
-  document.querySelectorAll('.uname').forEach(el => el.textContent = nn);
-  closeNickModal();
-  showToast('✅ 닉네임 변경됐어요');
+  await update(ref(db,`users/${currentUser.uid}`), {nickname:nn});
+  userNickname=nn;
+  document.querySelectorAll('.uname').forEach(el => el.textContent=nn);
+  closeNickModal(); showToast('✅ 닉네임 변경됐어요');
 };
 
-// 외부 클릭 닫기
 document.addEventListener('click', e => {
   ['modal-member','modal-users','modal-districts','modal-assign','modal-nickname'].forEach(id => {
-    if (e.target === document.getElementById(id))
+    if (e.target===document.getElementById(id))
       document.getElementById(id).classList.remove('show');
   });
 });
 </script>
 
 <style>
-:root {
-  --bg:#0f1117; --surface:#1a1d27; --surface2:#222536;
-  --border:#2e3147; --accent:#6c8fff; --accent2:#a78bfa;
-  --text:#e8eaf6; --muted:#7b82a8; --danger:#f87171;
-  --success:#4ade80; --monthly-color:#f6a935; --r:12px;
+:root{
+  --bg:#0f1117;--surface:#1a1d27;--surface2:#222536;
+  --border:#2e3147;--accent:#6c8fff;--accent2:#a78bfa;
+  --text:#e8eaf6;--muted:#7b82a8;--danger:#f87171;
+  --success:#4ade80;--monthly:#f6a935;--r:12px;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
@@ -674,7 +718,6 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .screen{display:none;flex-direction:column;min-height:100vh}
 #screen-main{height:100vh;max-height:100vh;overflow:hidden}
 
-/* 헤더 */
 .hdr{background:linear-gradient(135deg,#1a1d27,#0f1117);border-bottom:1px solid var(--border);
   padding:11px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;flex-shrink:0}
 .logo{width:30px;height:30px;background:linear-gradient(135deg,var(--accent),var(--accent2));
@@ -683,7 +726,6 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .hdr-right{margin-left:auto;display:flex;align-items:center;gap:6px}
 .uname{font-size:.75rem;color:var(--muted);cursor:pointer}.uname:hover{color:var(--accent)}
 
-/* 버튼 */
 .btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 14px;border-radius:8px;
   border:none;font-family:inherit;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .2s}
 .btn:disabled{opacity:.35;cursor:not-allowed}
@@ -713,27 +755,28 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 /* 회원가입/대기 */
 #screen-register,#screen-pending{align-items:center;justify-content:center}
 .center-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
-  padding:32px;width:340px;max-width:90vw;text-align:center}
+  padding:32px;width:360px;max-width:92vw;text-align:center}
 .center-box h3{font-size:1rem;font-weight:600;margin-bottom:16px}
-.center-box input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;
-  padding:9px 11px;color:var(--text);font-family:inherit;font-size:.87rem;margin-bottom:8px}
-.center-box input:focus{outline:none;border-color:var(--accent)}
+.center-box input,.center-box select{width:100%;background:var(--surface2);border:1px solid var(--border);
+  border-radius:6px;padding:9px 11px;color:var(--text);font-family:inherit;font-size:.87rem;margin-bottom:8px}
+.center-box input:focus,.center-box select:focus{outline:none;border-color:var(--accent)}
+.reg-row{display:none}
 
-/* 메인 레이아웃 */
+/* 메인 */
 .main-layout{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .main-content{flex:1;overflow-y:auto;min-height:0}
 .tab-pane{display:none;flex-direction:column;height:100%}
 .tab-pane.active{display:flex}
 
-/* 탭바 */
 .tab-bar{display:flex;border-top:1px solid var(--border);background:var(--surface);
   flex-shrink:0;padding-bottom:env(safe-area-inset-bottom,0)}
 .tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:3px;padding:8px 4px;border:none;background:transparent;color:var(--muted);
-  font-family:inherit;font-size:.65rem;cursor:pointer;border-top:2px solid transparent}
+  font-family:inherit;font-size:.62rem;cursor:pointer;border-top:2px solid transparent}
 .tab-btn.active{color:var(--accent);border-top-color:var(--accent)}
-.tab-icon{font-size:1.2rem;line-height:1}
+.tab-icon{font-size:1.15rem;line-height:1}
 .tab-label{font-weight:600}
+
 @media(min-width:1025px){
   .main-layout{flex-direction:row}
   .tab-bar{flex-direction:column;width:160px;border-top:none;border-right:1px solid var(--border);
@@ -745,50 +788,47 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
   .main-content{flex:1;overflow-y:auto}
 }
 
-/* 신앙관리 탭 */
-.faith-topbar{display:flex;align-items:center;gap:8px;padding:12px 16px;
+/* 신앙관리 */
+.faith-topbar{display:flex;align-items:center;gap:8px;padding:10px 14px;
   border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;flex-wrap:wrap}
-.faith-title{font-size:.92rem;font-weight:600;flex:1;white-space:nowrap}
+.faith-title{font-size:.9rem;font-weight:600;flex:1;white-space:nowrap}
 .week-badge{font-size:.72rem;color:var(--muted);white-space:nowrap;
-  background:var(--surface2);padding:3px 8px;border-radius:5px;border:0.5px solid var(--border)}
+  background:var(--surface2);padding:3px 8px;border-radius:5px;border:.5px solid var(--border)}
 
 .table-scroll{overflow-x:auto;flex:1}
-.faith-table{width:100%;border-collapse:collapse;min-width:580px}
-.faith-table th{background:var(--surface);padding:7px 6px;font-size:.68rem;font-weight:600;
+.faith-table{width:100%;border-collapse:collapse;min-width:560px}
+.faith-table th{background:var(--surface);padding:7px 5px;font-size:.68rem;font-weight:600;
   color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;text-align:center;
   position:sticky;top:0;z-index:2}
-.col-name{text-align:left;padding-left:14px;min-width:70px}
-.col-chk{width:38px}
-.col-monthly{color:var(--monthly-color) !important}
+.col-name{text-align:left;padding-left:14px;min-width:64px}
+.col-chk{width:36px}
+.col-monthly{color:var(--monthly) !important}
 .col-goal{min-width:180px;text-align:left;padding-left:8px}
 
-.faith-row{border-bottom:1px solid var(--border);transition:background .1s}
+.faith-row{border-bottom:1px solid var(--border)}
 .faith-row:hover{background:rgba(108,143,255,.04)}
-.col-name-td{padding:8px 6px 8px 14px;font-size:.83rem;white-space:nowrap}
+.col-name-td{padding:8px 5px 8px 14px;font-size:.83rem;white-space:nowrap}
 .member-name-cell{font-weight:500}
 .col-chk-td{text-align:center;padding:6px 2px;cursor:pointer;font-size:.85rem;
-  color:var(--muted);transition:all .15s;user-select:none;width:38px}
+  color:var(--muted);user-select:none;width:36px}
 .col-chk-td:hover{background:rgba(108,143,255,.1)}
 .col-chk-td.checked{color:var(--accent);font-weight:700}
-.col-monthly-td.checked{color:var(--monthly-color) !important}
+.col-monthly-td.checked{color:var(--monthly) !important}
 .col-goal-td{padding:5px 8px 5px 5px;min-width:180px}
 
 .prev-goal{display:flex;align-items:center;gap:4px;font-size:.68rem;cursor:pointer;
-  padding:2px 4px;border-radius:4px;margin-bottom:3px;transition:background .15s}
+  padding:2px 4px;border-radius:4px;margin-bottom:3px}
 .prev-goal:hover{background:var(--surface2)}
 .goal-ok{color:var(--success)}
 .goal-pending{color:var(--muted)}
 .prev-text{max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
 .goal-input{width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);
   color:var(--text);font-family:inherit;font-size:.78rem;padding:4px 2px;outline:none}
 .goal-input:focus{border-bottom-color:var(--accent)}
 .goal-input::placeholder{color:var(--muted)}
 .goal-input[readonly]{cursor:default;color:var(--muted)}
-
-.table-hint{padding:6px 16px;font-size:.68rem;color:var(--muted);flex-shrink:0}
-.monthly-badge{background:rgba(246,169,53,.15);color:var(--monthly-color);
-  padding:1px 6px;border-radius:3px;font-size:.68rem}
+.table-hint{padding:6px 14px;font-size:.68rem;color:var(--muted);flex-shrink:0}
+.monthly-badge{background:rgba(246,169,53,.15);color:var(--monthly);padding:1px 6px;border-radius:3px}
 
 /* 구역 선택 */
 .region-group{margin-bottom:14px}
@@ -799,10 +839,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
   border-radius:8px;padding:8px 14px;font-size:.83rem;cursor:pointer;transition:all .2s}
 .district-pick-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(108,143,255,.08)}
 
-/* 설정 탭 */
+/* 설정 */
 .settings-body{padding:16px;max-width:480px;margin:0 auto;width:100%}
-.settings-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
-  overflow:hidden;margin-bottom:14px}
+.settings-section{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);overflow:hidden;margin-bottom:14px}
 .settings-item{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;
   border-bottom:1px solid var(--border);transition:background .15s}
 .settings-item:last-child{border-bottom:none}
@@ -822,8 +862,6 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .user-name{font-size:.85rem;font-weight:600;margin-bottom:2px}
 .user-sub{font-size:.7rem;color:var(--muted)}
 .user-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap;flex-shrink:0}
-.member-name{font-size:.85rem;font-weight:600}
-.member-phone{font-size:.72rem;color:var(--muted);flex:1}
 .role-badge{font-size:.7rem;color:var(--muted);padding:2px 7px;border-radius:4px;background:var(--surface)}
 .small-select{background:var(--surface);border:1px solid var(--border);color:var(--text);
   border-radius:5px;padding:3px 6px;font-size:.72rem;font-family:inherit}
@@ -836,12 +874,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
   display:none;align-items:center;justify-content:center;padding:20px}
 .modal-bg.show{display:flex}
 .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
-  padding:20px;width:340px;max-width:90vw;max-height:88vh;overflow-y:auto}
+  padding:20px;width:360px;max-width:92vw;max-height:88vh;overflow-y:auto}
 .modal h3{font-size:.9rem;font-weight:600;margin-bottom:12px}
-.modal input,.modal select,.modal textarea{width:100%;background:var(--surface2);
-  border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);
-  font-family:inherit;font-size:.87rem;margin-bottom:8px}
-.modal input:focus,.modal select:focus{outline:none;border-color:var(--accent)}
+.modal-scroll{max-height:300px;overflow-y:auto;margin-bottom:10px}
 .modal-hint{font-size:.72rem;color:var(--muted);margin-bottom:6px;line-height:1.5}
 .modal-btns{display:flex;gap:6px;margin-top:6px}
 .modal-btns button{flex:1;padding:9px;border-radius:6px;border:none;
@@ -849,11 +884,17 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .modal-btns .ok{background:var(--accent);color:#fff}
 .modal-btns .cancel{background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
 .modal-wide{width:480px}
-.modal-scroll{max-height:300px;overflow-y:auto;margin-bottom:10px}
-.add-row{display:flex;gap:6px;margin-bottom:4px}
-.add-row input{margin-bottom:0;flex:1}
 
-/* 유틸 */
+/* 모달 입력 */
+.modal input,.modal select{width:100%;background:var(--surface2);border:1px solid var(--border);
+  border-radius:6px;padding:8px 10px;color:var(--text);font-family:inherit;font-size:.87rem;margin-bottom:8px}
+.modal input:focus,.modal select:focus{outline:none;border-color:var(--accent)}
+
+/* 지역·구역 관리 입력 행 */
+.add-row{display:flex;gap:8px;margin-bottom:10px;align-items:center}
+.add-row input,.add-row select{flex:1;margin-bottom:0;min-width:0}
+.add-row .btn-xs{flex-shrink:0;padding:8px 12px;font-size:.78rem;white-space:nowrap}
+
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;
   min-height:200px;color:var(--muted);text-align:center;padding:20px;font-size:.85rem;line-height:1.8}
 .loading{text-align:center;padding:40px;color:var(--muted);font-size:.85rem}
@@ -874,9 +915,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <div style="font-size:2.5rem;margin-bottom:14px">⛪</div>
     <h2>구역 관리</h2>
     <p>구리 청년회 구역 관리 시스템</p>
-    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">
-      Google로 로그인
-    </button>
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Google로 로그인</button>
   </div>
 </div>
 
@@ -885,9 +924,16 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
   <div class="center-box">
     <div style="font-size:2rem;margin-bottom:12px">📝</div>
     <h3>접속 신청</h3>
-    <p style="font-size:.78rem;color:var(--muted);margin-bottom:14px" id="reg-email"></p>
+    <p style="font-size:.75rem;color:var(--muted);margin-bottom:14px" id="reg-email"></p>
     <input type="text" id="reg-name" placeholder="이름 (필수)">
-    <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="submitRegister()">신청하기</button>
+    <select id="reg-role-select" onchange="onRegRoleChange()">
+      <option value="district_leader">구역장</option>
+      <option value="region_admin">임원</option>
+    </select>
+    <div id="reg-region-row" class="reg-row">
+      <select id="reg-region-select"><option value="">소속 지역 선택</option></select>
+    </div>
+    <button class="btn btn-primary" style="width:100%;margin-top:6px" onclick="submitRegister()">신청하기</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="doLogout()">취소</button>
   </div>
 </div>
@@ -897,7 +943,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
   <div class="center-box">
     <div style="font-size:2.5rem;margin-bottom:16px">📨</div>
     <h3>승인 대기 중</h3>
-    <p style="color:var(--muted);font-size:.83rem;margin:10px 0 20px;line-height:1.8">관리자가 승인하면 입장할 수 있어요</p>
+    <p style="color:var(--muted);font-size:.83rem;margin:10px 0 20px;line-height:1.8">
+      관리자 또는 임원이 승인하면 입장할 수 있어요
+    </p>
     <button class="btn btn-ghost" style="width:100%" onclick="doLogout()">로그아웃</button>
   </div>
 </div>
@@ -908,24 +956,28 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <div class="logo">⛪</div>
     <h1>구역 관리</h1>
     <div class="hdr-right">
-      <span class="uname" onclick="openNickModal()" style="cursor:pointer"></span>
+      <span class="uname" onclick="openNickModal()"></span>
     </div>
   </div>
-
   <div class="main-layout">
     <div class="main-content">
 
-      <!-- 신앙관리 탭 -->
+      <!-- 신앙관리 -->
       <div class="tab-pane active" id="tab-faith">
         <div id="faith-content"><div class="loading">불러오는 중…</div></div>
       </div>
 
-      <!-- 전도 탭 -->
+      <!-- 전도 -->
       <div class="tab-pane" id="tab-evang">
         <div id="evang-content"></div>
       </div>
 
-      <!-- 설정 탭 -->
+      <!-- 통계 -->
+      <div class="tab-pane chairman-only" id="tab-stats" style="display:none">
+        <div id="stats-content"></div>
+      </div>
+
+      <!-- 설정 -->
       <div class="tab-pane" id="tab-settings">
         <div class="settings-body">
           <div class="settings-section">
@@ -943,20 +995,22 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
               <span class="si-arr">›</span>
             </div>
           </div>
-          <div class="settings-section sa-only">
-            <div class="settings-item" onclick="openDistrictMgmt()">
-              <span class="si-icon">🗺</span>
-              <span class="si-label">지역 · 구역 관리</span>
-              <span class="si-arr">›</span>
-            </div>
+          <div class="settings-section region-only">
             <div class="settings-item" onclick="openAssignModal()">
               <span class="si-icon">📌</span>
-              <span class="si-label">구역 배정</span>
+              <span class="si-label">구역장 배정</span>
               <span class="si-arr">›</span>
             </div>
             <div class="settings-item" onclick="openUserMgmt()">
               <span class="si-icon">🔑</span>
-              <span class="si-label">멤버 · 권한 관리</span>
+              <span class="si-label">멤버 · 승인 관리</span>
+              <span class="si-arr">›</span>
+            </div>
+          </div>
+          <div class="settings-section sa-only">
+            <div class="settings-item" onclick="openDistrictMgmt()">
+              <span class="si-icon">🗺</span>
+              <span class="si-label">지역 · 구역 관리</span>
               <span class="si-arr">›</span>
             </div>
           </div>
@@ -966,7 +1020,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
               <span class="si-label">로그아웃</span>
             </div>
           </div>
-          <div class="settings-ver">구역 관리 v1.0</div>
+          <div class="settings-ver">구역 관리 v1.1</div>
         </div>
       </div>
     </div>
@@ -979,6 +1033,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
       <button class="tab-btn" data-tab="evang" onclick="switchTab('evang')">
         <span class="tab-icon">🌱</span><span class="tab-label">전도</span>
       </button>
+      <button class="tab-btn chairman-only" data-tab="stats" onclick="switchTab('stats')">
+        <span class="tab-icon">📊</span><span class="tab-label">통계</span>
+      </button>
       <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">
         <span class="tab-icon">⚙️</span><span class="tab-label">설정</span>
       </button>
@@ -986,7 +1043,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
   </div>
 </div>
 
-<!-- 구역원 관리 모달 -->
+<!-- 구역원 관리 -->
 <div class="modal-bg" id="modal-member">
   <div class="modal">
     <h3>👥 구역원 관리</h3>
@@ -1004,10 +1061,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
   </div>
 </div>
 
-<!-- 멤버 관리 모달 -->
+<!-- 멤버·승인 관리 -->
 <div class="modal-bg" id="modal-users">
   <div class="modal modal-wide">
-    <h3>🔑 멤버 · 권한 관리</h3>
+    <h3>🔑 멤버 · 승인 관리</h3>
     <div class="modal-scroll" id="user-list"></div>
     <div style="text-align:right;margin-top:8px">
       <button class="btn btn-ghost btn-sm" onclick="closeUserMgmt()">닫기</button>
@@ -1015,33 +1072,34 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
   </div>
 </div>
 
-<!-- 지역/구역 관리 모달 -->
+<!-- 지역·구역 관리 -->
 <div class="modal-bg" id="modal-districts">
   <div class="modal modal-wide">
     <h3>🗺 지역 · 구역 관리</h3>
-    <p class="modal-hint">지역 추가</p>
+    <p class="modal-hint" style="margin-top:4px">지역 추가</p>
     <div class="add-row">
       <input type="text" id="inp-region-name" placeholder="지역 이름 (예: 구리)">
-      <button class="btn-xs" onclick="addRegion()" style="white-space:nowrap">추가</button>
+      <button class="btn-xs" onclick="addRegion()">추가</button>
     </div>
-    <p class="modal-hint" style="margin-top:8px">구역 추가</p>
+    <div class="modal-scroll" id="region-list" style="max-height:120px"></div>
+    <hr style="border-color:var(--border);margin:10px 0">
+    <p class="modal-hint">구역 추가</p>
     <div class="add-row">
       <input type="text" id="inp-dist-name" placeholder="구역 이름 (예: 1구역)">
-      <select id="sel-new-dist-region" class="small-select"></select>
-      <button class="btn-xs" onclick="addDistrict()" style="white-space:nowrap">추가</button>
+      <select id="sel-new-dist-region" style="flex:none;width:90px"></select>
+      <button class="btn-xs" onclick="addDistrict()">추가</button>
     </div>
-    <hr style="border-color:var(--border);margin:10px 0">
-    <div class="modal-scroll" id="district-list"></div>
+    <div class="modal-scroll" id="district-list" style="max-height:180px"></div>
     <div style="text-align:right;margin-top:8px">
       <button class="btn btn-ghost btn-sm" onclick="closeDistrictMgmt()">닫기</button>
     </div>
   </div>
 </div>
 
-<!-- 구역 배정 모달 -->
+<!-- 구역장 배정 -->
 <div class="modal-bg" id="modal-assign">
   <div class="modal modal-wide">
-    <h3>📌 구역 배정</h3>
+    <h3>📌 구역장 배정</h3>
     <div class="modal-scroll" id="assign-list"></div>
     <div style="text-align:right;margin-top:8px">
       <button class="btn btn-ghost btn-sm" onclick="closeAssignModal()">닫기</button>
@@ -1049,7 +1107,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
   </div>
 </div>
 
-<!-- 닉네임 모달 -->
+<!-- 닉네임 -->
 <div class="modal-bg" id="modal-nickname">
   <div class="modal" style="width:300px">
     <h3>닉네임 변경</h3>
