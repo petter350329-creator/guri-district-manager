@@ -67,7 +67,7 @@ onAuthStateChanged(auth,async user=>{
       const emailKey=btoa(user.email).replace(/=/g,'');
       const wSnap=await get(ref(db,`whitelist/${emailKey}`));
       if(wSnap.exists()){const d=wSnap.val();await set(ref(db,`users/${user.uid}`),{email:user.email,name:user.displayName,nickname:user.displayName,role:d.role,regionId:d.regionId||null,districtId:d.districtId||null,createdAt:Date.now()});}
-      else{await loadRegionsForReg();document.getElementById('reg-email').textContent=user.email;showScreen('register');return;}
+      else{document.getElementById('reg-email').textContent=user.email;showScreen('register');return;}
     }
   }
   const uData=(await get(ref(db,`users/${user.uid}`))).val();
@@ -80,15 +80,12 @@ onAuthStateChanged(auth,async user=>{
 });
 window.doLogin=async()=>{try{await signInWithPopup(auth,new GoogleAuthProvider());}catch(e){alert('로그인 실패: '+e.message);}};
 window.doLogout=async()=>await signOut(auth);
-async function loadRegionsForReg(){const s=await get(ref(db,'regions'));const r=s.val()||{};document.getElementById('reg-region-sel').innerHTML='<option value="">소속 지역 선택</option>'+Object.entries(r).map(([id,v])=>`<option value="${id}">${v.name}</option>`).join('');}
-window.onRegRoleChange=()=>{document.getElementById('reg-region-row').style.display=document.getElementById('reg-role-sel').value==='district_leader'?'':'none';};
 window.submitRegister=async()=>{
   const name=document.getElementById('reg-name').value.trim();
-  const role=document.getElementById('reg-role-sel').value;
   const regionId=document.getElementById('reg-region-sel').value;
   if(!name){alert('이름을 입력해주세요');return;}
-  if(role==='district_leader'&&!regionId){alert('소속 지역을 선택해주세요');return;}
-  await set(ref(db,`requests/${currentUser.uid}`),{email:currentUser.email,name,role,regionId:regionId||null,createdAt:Date.now()});
+  if(!regionId){alert('소속 지역을 선택해주세요');return;}
+  await set(ref(db,`requests/${currentUser.uid}`),{email:currentUser.email,name,role:'district_leader',regionId,createdAt:Date.now()});
   showScreen('pending');
 };
 
@@ -205,12 +202,13 @@ async function loadFaithWeek(){
     const worship=w.worship||{},mOff=m.offering||{},goal=w.goal||{};
     const eduDone=w.education||{},svcDone=w.service||{};
 
-    const wLabel=(data)=>{
+    const wLabel=(data,wType)=>{
       if(!data||!data.type)return`<span class="w-empty">—</span>`;
       const cfg={present:{c:'var(--success)',s:'●'},zoom:{c:'var(--accent)',s:'Z'},excuse:{c:'var(--monthly)',s:'사'}};
       const {c,s}=cfg[data.type]||{c:'var(--muted)',s:'?'};
       const sub=data.time||data.excuseType||'';
-      return`<span style="color:${c};font-size:.72rem;white-space:nowrap">${s}<br><span style="font-size:.65rem;opacity:.8">${sub}</span></span>`;
+      const memoIcon=data.type==='excuse'?`<span class="memo-icon ${data.excuseNote?'memo-has':''}" onclick="event.stopPropagation();openMemoPop(event,'${did}','${mid}','${wType}')" title="${data.excuseNote||'메모 추가'}">📝</span>`:'';
+      return`<span style="color:${c};font-size:.72rem;white-space:nowrap">${s}<br><span style="font-size:.65rem;opacity:.8">${sub}</span></span>${memoIcon}`;
     };
 
     const resultBtns=['○','△','✕'].map(r=>`<button class="result-btn ${goal.prevResult===r?'result-on r-'+r:''}" onclick="${canEdit()?`setResult('${did}','${mid}','${r}')`:''}">${r}</button>`).join('');
@@ -219,8 +217,8 @@ async function loadFaithWeek(){
     tr.className='faith-row';tr.dataset.mid=mid;
     tr.innerHTML=`
       <td class="col-name-td"><span class="member-name-cell" onclick="openProfile('${did}','${mid}','${member.name}')">${member.name}</span></td>
-      <td class="col-worship-td" onclick="${canEdit()?`openWorshipPop(event,'${did}','${mid}','samil')`:''}">${wLabel(worship.samil)}</td>
-      <td class="col-worship-td" onclick="${canEdit()?`openWorshipPop(event,'${did}','${mid}','juil')`:''}">${wLabel(worship.juil)}</td>
+      <td class="col-worship-td" onclick="${canEdit()?`openWorshipPop(event,'${did}','${mid}','samil')`:''}">${wLabel(worship.samil,'samil')}</td>
+      <td class="col-worship-td" onclick="${canEdit()?`openWorshipPop(event,'${did}','${mid}','juil')`:''}">${wLabel(worship.juil,'juil')}</td>
       <td class="col-tags-td" onclick="${canEdit()?`openDynPop(event,'${did}','${mid}','edu')`:''}">${Object.keys(eduDone).filter(id=>eduDone[id]).map(id=>`<span class="item-badge" ondblclick="event.stopPropagation();${canEdit()?`removeDyn('${did}','${mid}','${id}','edu')`:''}">${eduListCache[id]?.name||'?'}</span>`).join('')}${canEdit()?`<span class="badge-add">+</span>`:''}</td>
       <td class="col-tags-td" onclick="${canEdit()?`openDynPop(event,'${did}','${mid}','service')`:''}">${Object.keys(svcDone).filter(id=>svcDone[id]).map(id=>`<span class="item-badge svc-badge" ondblclick="event.stopPropagation();${canEdit()?`removeDyn('${did}','${mid}','${id}','service')`:''}">${serviceListCache[id]?.name||'?'}</span>`).join('')}${canEdit()?`<span class="badge-add">+</span>`:''}</td>
       <td class="col-chk-td ${w.offering?.weekly?'checked':''}" onclick="${canEdit()?`toggleWkly('${did}','${mid}')`:''}">${w.offering?.weekly?'✓':''}</td>
@@ -275,7 +273,32 @@ window.openWorshipPop=async(event,did,mid,wType)=>{
   document.body.appendChild(pop);activePop=pop;
   setTimeout(()=>document.addEventListener('click',closePop,{once:true}),50);
 };
-window.setWorship=async(did,mid,wType,type,time,excuseType)=>{
+// ── 사유출석 메모 팝오버 ──
+window.openMemoPop=async(event,did,mid,wType)=>{
+  event.stopPropagation();closePop();
+  const snap=await get(ref(db,`weekly/${did}/${currentWeekId}/${mid}/worship/${wType}/excuseNote`));
+  const cur=snap.val()||'';
+  const pop=document.createElement('div');
+  pop.className='worship-pop';
+  pop.innerHTML=`
+    <div class="pop-title">📝 사유출석 메모</div>
+    <div class="pop-sec-label" style="margin-bottom:6px">예: 월요일 오전 10시 A교회 대예배</div>
+    <textarea id="memo-input" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-family:inherit;font-size:.8rem;resize:vertical;min-height:60px;outline:none" placeholder="날짜/시간/장소 메모…">${cur}</textarea>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <button class="pop-btn pop-on" style="flex:1" onclick="saveMemo('${did}','${mid}','${wType}')">저장</button>
+      <button class="pop-clear" style="flex:none;width:auto;padding:4px 10px" onclick="closePop()">닫기</button>
+    </div>`;
+  const rect=(event.currentTarget||event.target).getBoundingClientRect();
+  pop.style.top=(rect.bottom+4)+'px';
+  pop.style.left=Math.max(4,Math.min(rect.left-60,window.innerWidth-220))+'px';
+  document.body.appendChild(pop);activePop=pop;
+  pop.querySelector('#memo-input').focus();
+};
+window.saveMemo=async(did,mid,wType)=>{
+  const val=document.getElementById('memo-input')?.value.trim()||'';
+  await set(ref(db,`weekly/${did}/${currentWeekId}/${mid}/worship/${wType}/excuseNote`),val||null);
+  closePop();await loadFaithWeek();showToast('✅ 메모 저장됐어요');
+};
   const path=`weekly/${did}/${currentWeekId}/${mid}/worship/${wType}`;
   if(!type)await set(ref(db,path),null);
   else await set(ref(db,path),{type,time:time||null,excuseType:excuseType||null});
@@ -603,6 +626,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .member-name-cell:hover{color:var(--accent);text-decoration:underline}
 .col-worship-td{text-align:center;padding:4px 2px;cursor:pointer;min-width:52px;vertical-align:middle}
 .col-worship-td:hover{background:rgba(133,183,235,.1)}
+.memo-icon{font-size:.65rem;cursor:pointer;opacity:.35;vertical-align:super;margin-left:1px;user-select:none}
+.memo-icon:hover{opacity:1}
+.memo-icon.memo-has{opacity:.9;filter:sepia(1) saturate(3) hue-rotate(10deg)}
 .w-empty{color:var(--muted);font-size:.75rem}
 .col-dyn-td{text-align:center;padding:6px 2px;cursor:pointer;font-size:.8rem;color:var(--muted);min-width:44px}
 .col-dyn-td:hover{background:rgba(74,222,128,.08)}
@@ -746,13 +772,14 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <h3>접속 신청</h3>
     <p style="font-size:.75rem;color:var(--muted);margin-bottom:14px" id="reg-email"></p>
     <input type="text" id="reg-name" placeholder="이름 (필수)">
-    <select id="reg-role-sel" onchange="onRegRoleChange()">
-      <option value="district_leader">구역장</option>
-      <option value="region_admin">임원</option>
+    <select id="reg-region-sel">
+      <option value="">소속 지역 선택 *</option>
+      <option value="구리">구리</option>
+      <option value="남양주">남양주</option>
+      <option value="창조">창조</option>
+      <option value="회장단">회장단</option>
     </select>
-    <div id="reg-region-row" class="reg-row">
-      <select id="reg-region-sel"><option value="">소속 지역 선택</option></select>
-    </div>
+    <p style="font-size:.7rem;color:var(--muted);margin-bottom:10px;text-align:left">모든 신청자는 구역장으로 등록됩니다.<br>임원 이상은 관리자가 승격해드립니다.</p>
     <button class="btn btn-primary" style="width:100%;margin-top:6px" onclick="submitRegister()">신청하기</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="doLogout()">취소</button>
   </div>
