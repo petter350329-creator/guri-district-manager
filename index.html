@@ -6,7 +6,7 @@
 <title>구역 관리</title>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getDatabase, ref, set, get, push, remove, update }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
@@ -78,8 +78,18 @@ onAuthStateChanged(auth,async user=>{
   regionsCache=rs.val()||{};districtsCache=ds.val()||{};
   enterMain();
 });
-window.doLogin=async()=>{try{await signInWithPopup(auth,new GoogleAuthProvider());}catch(e){alert('로그인 실패: '+e.message);}};
+const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+window.doLogin=async()=>{
+  try{
+    if(isMobile)await signInWithRedirect(auth,new GoogleAuthProvider());
+    else await signInWithPopup(auth,new GoogleAuthProvider());
+  }catch(e){
+    if(e.code!=='auth/popup-closed-by-user')alert('로그인 실패: '+e.message);
+  }
+};
 window.doLogout=async()=>await signOut(auth);
+// 리다이렉트 로그인 후 결과 처리
+getRedirectResult(auth).catch(()=>{});
 window.submitRegister=async()=>{
   const name=document.getElementById('reg-name').value.trim();
   const regionId=document.getElementById('reg-region-sel').value;
