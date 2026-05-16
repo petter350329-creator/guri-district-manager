@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+${_spBadge}<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -315,6 +315,9 @@ async function loadFaithWeek(){
   active.forEach(([mid,member])=>{
     const w=weekData[mid]||{},m=monthData[mid]||{};
     const worship=w.worship||{},mOff=m.offering||{},goal=w.goal||{};
+    const _sk=detailData[mid]?.spiritLevel||'';
+    const _sp=_sk?SPIRIT_LEVELS.find(s=>s.key===_sk):null;
+    const _spBadge=_sp?`<span style="display:block;background:${_sp.bg};color:${_sp.color};border:0.5px solid ${_sp.border};border-radius:3px;padding:1px 5px;font-size:.58rem;margin-top:1px;white-space:nowrap">${_sp.label}</span>`:'';
     const eduDone=w.education||{},svcDone=w.service||{};
 
     const wLabel=(data,wType)=>{
@@ -333,23 +336,25 @@ async function loadFaithWeek(){
     tr.innerHTML=`
       <td class="col-name-td">
         <span class="member-name-cell" onclick="openProfile('${did}','${mid}','${member.name}')">${member.name}</span>
-        ${(()=>{const spirit=SPIRIT_LEVELS.find(s=>s.key===(detailData[mid]?.spiritLevel||''));return spirit?`<span style="display:block;background:${spirit.bg};color:${spirit.color};border:0.5px solid ${spirit.border};border-radius:3px;padding:1px 5px;font-size:.58rem;margin-top:1px;white-space:nowrap">${spirit.label}</span>`:'';})()}
+        ${_spBadge}
       </td>
       <td class="col-worship-td" onclick="${canEdit()?`openWorshipPop(event,'${did}','${mid}','samil')`:''}">${wLabel(worship.samil,'samil')}</td>
-      <td class="col-worship-td" onclick="${canEdit()?`openWorshipPop(event,'${did}','${mid}','juil')`:''}">${wLabel(worship.juil,'juil')}</td>
+      <td class="col-worship-td" style="border-right:2px solid #2a3d5a" onclick="${canEdit()?`openWorshipPop(event,'${did}','${mid}','juil')`:''}">${wLabel(worship.juil,'juil')}</td>
       <td class="col-tags-td" onclick="${canEdit()?`openDynPop(event,'${did}','${mid}','edu')`:''}">${Object.keys(eduDone).filter(id=>eduDone[id]).map(id=>`<span class="item-badge" ondblclick="event.stopPropagation();${canEdit()?`removeDyn('${did}','${mid}','${id}','edu')`:''}">${eduListCache[id]?.name||'?'}</span>`).join('')}${canEdit()?`<span class="badge-add">+</span>`:''}</td>
-      <td class="col-tags-td" onclick="${canEdit()?`openDynPop(event,'${did}','${mid}','service')`:''}">${Object.keys(svcDone).filter(id=>svcDone[id]).map(id=>`<span class="item-badge svc-badge" ondblclick="event.stopPropagation();${canEdit()?`removeDyn('${did}','${mid}','${id}','service')`:''}">${serviceListCache[id]?.name||'?'}</span>`).join('')}${canEdit()?`<span class="badge-add">+</span>`:''}</td>
+      <td class="col-tags-td" style="border-right:2px solid #4a3a1a" onclick="${canEdit()?`openDynPop(event,'${did}','${mid}','service')`:''}">${Object.keys(svcDone).filter(id=>svcDone[id]).map(id=>`<span class="item-badge svc-badge" ondblclick="event.stopPropagation();${canEdit()?`removeDyn('${did}','${mid}','${id}','service')`:''}">${serviceListCache[id]?.name||'?'}</span>`).join('')}${canEdit()?`<span class="badge-add">+</span>`:''}</td>
       <td class="col-chk-td ${w.offering?.weekly?'checked':''}" onclick="${canEdit()?`toggleWkly('${did}','${mid}')`:''}">${w.offering?.weekly?'✓':''}</td>
       <td class="col-chk-td col-monthly-td ${mOff.tithe?'checked':''}" onclick="${canEdit()?`toggleMonthly('${did}','${mid}','tithe')`:''}">${mOff.tithe?'✓':''}</td>
-      <td class="col-chk-td col-monthly-td ${mOff.construction?'checked':''}" onclick="${canEdit()?`toggleMonthly('${did}','${mid}','construction')`:''}">${mOff.construction?'✓':''}</td>
+      <td class="col-chk-td col-monthly-td ${mOff.construction?'checked':''}" style="border-right:2px solid #4a2a3a" onclick="${canEdit()?`toggleMonthly('${did}','${mid}','construction')`:''}">${mOff.construction?'✓':''}</td>
       ${extraCols.map(([id])=>`<td class="col-chk-td col-extra-td ${mOff.extras?.[id]?'checked':''}" onclick="${canEdit()?`toggleExtra('${did}','${mid}','${id}')`:''}">${mOff.extras?.[id]?'✓':''}</td>`).join('')}
       <td class="col-prev-goal-td">
         ${goal.prevText?`<div style="font-size:.72rem;color:var(--muted)">${goal.prevText}</div>`:''}
         ${goal.prevLeaderNote?`<div style="font-size:.67rem;color:#a78bfa;margin-top:2px">💬 ${goal.prevLeaderNote}</div>`:''}
       </td>
       <td class="col-result-td">${resultBtns}</td>
-      <td class="col-cur-goal-td"><input class="goal-input" type="text" value="${goal.text||''}" placeholder="목표…" ${!canEdit()?'readonly':''} onblur="saveGoal('${did}','${mid}',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></td>
-      <td class="col-leader-note-td"><input class="goal-input" type="text" value="${goal.leaderNote||''}" placeholder="임원 조언…" ${!isRegion()?'readonly':''} onblur="saveLeaderNote('${did}','${mid}',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></td>`;
+      <td class="col-cur-goal-td">
+        <input class="goal-input" type="text" value="${goal.text||''}" placeholder="이번주 목표…" ${!canEdit()?'readonly':''} onblur="saveGoal('${did}','${mid}',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+        <input class="goal-input leader-note-input" type="text" value="${goal.leaderNote||''}" placeholder="💬 임원 조언…" ${!isRegion()?'readonly':''} onblur="saveLeaderNote('${did}','${mid}',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+      </td>`;
     tbody.appendChild(tr);
   });
 
@@ -810,7 +815,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .col-extra-td.checked{color:#c97ab5!important}
 .col-prev-goal-td{padding:4px 6px;font-size:.72rem;color:var(--muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .col-result-td{padding:3px 2px;text-align:center;white-space:nowrap}
-.result-btn{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-size:.82rem;cursor:pointer;color:var(--muted);margin:1px;transition:all .15s;font-weight:500}
+.result-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 11px;font-size:.9rem;cursor:pointer;color:var(--muted);margin:1px;transition:all .15s;font-weight:600;min-width:32px}
 .result-btn:hover{border-color:var(--accent)}
 .result-on{font-weight:700}
 .result-on.r-○{background:rgba(74,222,128,.15);color:var(--success);border-color:var(--success)}
@@ -1016,7 +1021,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
               <span class="si-icon">🚪</span><span class="si-label">로그아웃</span>
             </div>
           </div>
-          <div class="settings-ver">구역 관리 v2.4</div>
+          <div class="settings-ver">구역 관리 v2.5</div>
         </div>
       </div>
     </div>
