@@ -64,6 +64,17 @@ const canEdit=()=>isLeader();
 
 function showScreen(n){document.querySelectorAll('.screen').forEach(s=>s.style.display='none');const el=document.getElementById('screen-'+n);if(el)el.style.display='flex';}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+function positionPop(pop,rect,minW,estH){
+  const margin=8;
+  const left=Math.max(margin,Math.min(rect.left,window.innerWidth-(minW||220)-margin));
+  let top=rect.bottom+4;
+  // 화면 아래로 넘치면 위로
+  if(top+(estH||280)>window.innerHeight-margin){
+    top=Math.max(margin,rect.top-(estH||280)-4);
+  }
+  pop.style.top=top+'px';
+  pop.style.left=left+'px';
+}
 function closePop(e){if(activePop&&e&&activePop.contains(e.target))return;if(activePop){activePop.remove();activePop=null;}}
 
 // ── 인증 ──
@@ -138,14 +149,40 @@ window.prevWeek=()=>{currentWeekId=shiftWeek(currentWeekId,-1);currentMonthId=mo
 window.nextWeek=()=>{const nw=shiftWeek(currentWeekId,1);if(nw<=getWeekId()){currentWeekId=nw;currentMonthId=monthFromWeek(currentWeekId);loadFaithWeek();}};
 window.openWeekPicker=(event)=>{
   event.stopPropagation();closePop();
+  // 현재 선택된 주차의 날짜 기준으로 달 계산
+  const baseDate=(()=>{const[y,wn]=currentWeekId.split('-W');const j=new Date(parseInt(y),0,1);const off=(parseInt(wn)-1)*7-j.getDay()+1;return new Date(parseInt(y),0,off);})();
+  let calYear=baseDate.getFullYear(),calMonth=baseDate.getMonth();
+  function buildCal(){
+    const firstDay=new Date(calYear,calMonth,1);
+    const lastDay=new Date(calYear,calMonth+1,0);
+    let d=new Date(firstDay);
+    // 주 시작(일요일 기준으로 해당 주 월요일)
+    const dow=d.getDay();d.setDate(d.getDate()-(dow===0?6:dow-1));
+    const weeks=[];
+    while(d<=lastDay){
+      const days=[];
+      for(let i=0;i<7;i++){days.push(new Date(d));d.setDate(d.getDate()+1);}
+      const wid=getWeekId(days[0]);
+      weeks.push({wid,days});
+      if(d.getMonth()>calMonth&&d.getFullYear()>=calYear)break;
+    }
+    const mn=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+    const todayWid=getWeekId();
+    return`<div class="pop-title" style="display:flex;align-items:center;gap:8px">
+      <button class="pop-btn" onclick="event.stopPropagation();calShift(-1)">◀</button>
+      <span style="flex:1;text-align:center">${calYear}년 ${mn[calMonth]}</span>
+      <button class="pop-btn" onclick="event.stopPropagation();calShift(1)">▶</button>
+    </div>
+    <div class="cal-header"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span><span>일</span></div>
+    ${weeks.map(w=>`<div class="cal-week ${w.wid===currentWeekId?'cal-week-on':''}" onclick="window.selectWeek('${w.wid}')">
+      ${w.days.map(day=>`<span class="cal-day${day.getMonth()!==calMonth?' cal-dim':''}${getWeekId(day)===todayWid?' cal-this':''}">${day.getDate()}</span>`).join('')}
+    </div>`).join('')}`;
+  }
   const pop=document.createElement('div');
-  pop.className='worship-pop week-picker-pop';
-  const weeks=[];let w=getWeekId();
-  for(let i=0;i<16;i++){weeks.unshift(w);w=shiftWeek(w,-1);}
-  pop.innerHTML=`<div class="pop-title">📅 주차 선택</div><div class="week-picker-list">${weeks.map(wk=>`<button class="week-pick-btn ${wk===currentWeekId?'wk-on':''}" onclick="window.selectWeek('${wk}')">${getWeekLabel(wk)}<br><span style="font-size:.62rem;opacity:.6">${wk}</span></button>`).join('')}</div>`;
-  const rect=(event.currentTarget||event.target).getBoundingClientRect();
-  pop.style.top=(rect.bottom+4)+'px';
-  pop.style.left=Math.max(4,Math.min(rect.left-40,window.innerWidth-220))+'px';
+  pop.className='worship-pop calendar-pop';
+  pop.innerHTML=buildCal();
+  window.calShift=(delta)=>{calMonth+=delta;if(calMonth<0){calMonth=11;calYear--;}if(calMonth>11){calMonth=0;calYear++;}pop.innerHTML=buildCal();};
+  positionPop(pop,(event.currentTarget||event.target).getBoundingClientRect(),240,320);
   document.body.appendChild(pop);activePop=pop;
   setTimeout(()=>document.addEventListener('click',closePop,{once:true}),50);
 };
@@ -180,8 +217,33 @@ async function loadFaithWeek(){
   el.innerHTML='<div class="loading">불러오는 중…</div>';
   const did=faithDistrictId;
   await loadDynLists(did);
-  const[ms,ws,mths]=await Promise.all([get(ref(db,`members/${did}`)),get(ref(db,`weekly/${did}/${currentWeekId}`)),get(ref(db,`monthly/${did}/${currentMonthId}`))]);
-  const members=ms.val()||{},weekData=ws.val()||{},monthData=mths.val()||{};
+  const prevWeekId=shiftWeek(currentWeekId,-1);
+  const[ms,ws,mths,pws]=await Promise.all([
+    get(ref(db,`members/${did}`)),
+    get(ref(db,`weekly/${did}/${currentWeekId}`)),
+    get(ref(db,`monthly/${did}/${currentMonthId}`)),
+    get(ref(db,`weekly/${did}/${prevWeekId}`))
+  ]);
+  const members=ms.val()||{},monthData=mths.val()||{};
+  let weekData=ws.val()||{};
+  const prevWeekData=pws.val()||{};
+  // ── 목표 자동 이월 ──
+  const carryUpd={};
+  Object.keys(members).forEach(mid=>{
+    const cur=(weekData[mid]||{}).goal||{};
+    const prev=(prevWeekData[mid]||{}).goal||{};
+    if(!cur.prevText&&prev.text){
+      carryUpd[`weekly/${did}/${currentWeekId}/${mid}/goal/prevText`]=prev.text;
+      if(!weekData[mid])weekData[mid]={};if(!weekData[mid].goal)weekData[mid].goal={};
+      weekData[mid].goal.prevText=prev.text;
+    }
+    if(!cur.prevLeaderNote&&prev.leaderNote){
+      carryUpd[`weekly/${did}/${currentWeekId}/${mid}/goal/prevLeaderNote`]=prev.leaderNote;
+      if(!weekData[mid])weekData[mid]={};if(!weekData[mid].goal)weekData[mid].goal={};
+      weekData[mid].goal.prevLeaderNote=prev.leaderNote;
+    }
+  });
+  if(Object.keys(carryUpd).length)await update(ref(db),carryUpd);
   const dName=districtsCache[did]?.name||'구역';
   const rName=regionsCache[districtsCache[did]?.regionId]?.name||'';
   const active=Object.entries(members).filter(([,m])=>m.isActive!==false).sort((a,b)=>(a[1].order||0)-(b[1].order||0));
@@ -212,18 +274,18 @@ async function loadFaithWeek(){
           📖 교육 ${canManageLists()?`<button class="mgmt-btn" onclick="openListMgmt('edu','${did}')">관리</button>`:''}
         </th>
         <th colspan="1" class="sector-head s-svc">
-          🤝 봉사 ${canManageLists()?`<button class="mgmt-btn" onclick="openListMgmt('service','${did}')">관리</button>`:''}
+          🤝 모임(봉사) ${canManageLists()?`<button class="mgmt-btn" onclick="openListMgmt('service','${did}')">관리</button>`:''}
         </th>
         <th colspan="${3+extraCols.length}" class="sector-head s-offering">
           💰 헌금 ${canManageLists()?`<button class="mgmt-btn" onclick="openListMgmt('extra','${did}')">관리</button>`:''}
         </th>
-        <th colspan="3" class="sector-head s-goal">🎯 단계향상 목표</th>
+        <th colspan="4" class="sector-head s-goal">🎯 단계향상 목표</th>
       </tr>
       <tr class="sub-head-row">
         <th class="col-worship">삼일</th>
         <th class="col-worship">주일</th>
         <th class="col-tags-head">받은 교육</th>
-        <th class="col-tags-head">봉사 활동</th>
+        <th class="col-tags-head">모임(봉사)</th>
         <th class="col-chk col-weekly" title="주정헌금">주정</th>
         <th class="col-chk col-monthly" title="십일조(월간)">십일</th>
         <th class="col-chk col-monthly" title="건축헌금(월간)">건축</th>
@@ -231,6 +293,7 @@ async function loadFaithWeek(){
         <th class="col-prev-goal">지난주 목표</th>
         <th class="col-result">달성</th>
         <th class="col-cur-goal">이번주 목표</th>
+        <th class="col-leader-note">임원 첨언</th>
       </tr>
     </thead>
     <tbody id="faith-tbody"></tbody>
@@ -249,7 +312,7 @@ async function loadFaithWeek(){
     const eduDone=w.education||{},svcDone=w.service||{};
 
     const wLabel=(data,wType)=>{
-      if(!data||!data.type)return`<span class="w-empty">—</span>`;
+      if(!data||!data.type)return`<span class="w-none">✕</span>`;
       const cfg={present:{c:'var(--success)',s:'●'},zoom:{c:'var(--accent)',s:'Z'},excuse:{c:'var(--monthly)',s:'사'}};
       const {c,s}=cfg[data.type]||{c:'var(--muted)',s:'?'};
       const sub=data.time||data.excuseType||'';
@@ -274,9 +337,13 @@ async function loadFaithWeek(){
       <td class="col-chk-td col-monthly-td ${mOff.tithe?'checked':''}" onclick="${canEdit()?`toggleMonthly('${did}','${mid}','tithe')`:''}">${mOff.tithe?'✓':''}</td>
       <td class="col-chk-td col-monthly-td ${mOff.construction?'checked':''}" onclick="${canEdit()?`toggleMonthly('${did}','${mid}','construction')`:''}">${mOff.construction?'✓':''}</td>
       ${extraCols.map(([id])=>`<td class="col-chk-td col-extra-td ${mOff.extras?.[id]?'checked':''}" onclick="${canEdit()?`toggleExtra('${did}','${mid}','${id}')`:''}">${mOff.extras?.[id]?'✓':''}</td>`).join('')}
-      <td class="col-prev-goal-td">${goal.prevText||''}</td>
+      <td class="col-prev-goal-td">
+        ${goal.prevText?`<div style="font-size:.72rem;color:var(--muted)">${goal.prevText}</div>`:''}
+        ${goal.prevLeaderNote?`<div style="font-size:.67rem;color:#a78bfa;margin-top:2px">💬 ${goal.prevLeaderNote}</div>`:''}
+      </td>
       <td class="col-result-td">${resultBtns}</td>
-      <td class="col-cur-goal-td"><input class="goal-input" type="text" value="${goal.text||''}" placeholder="목표…" ${!canEdit()?'readonly':''} onblur="saveGoal('${did}','${mid}',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></td>`;
+      <td class="col-cur-goal-td"><input class="goal-input" type="text" value="${goal.text||''}" placeholder="목표…" ${!canEdit()?'readonly':''} onblur="saveGoal('${did}','${mid}',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></td>
+      <td class="col-leader-note-td"><input class="goal-input" type="text" value="${goal.leaderNote||''}" placeholder="임원 조언…" ${!isRegion()?'readonly':''} onblur="saveLeaderNote('${did}','${mid}',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></td>`;
     tbody.appendChild(tr);
   });
 
@@ -290,6 +357,7 @@ window.loadFaithWeek=loadFaithWeek;
 const SAMIL_TIMES=['12시','19시','20시','당일방문'];
 const JUIL_TIMES=['12시','15시','19:30','당일방문'];
 const EXCUSE=['대체예배','온라인예배'];
+const ZOOM_EXTRA='그외';
 
 window.openWorshipPop=async(event,did,mid,wType)=>{
   event.stopPropagation();closePop();
@@ -308,7 +376,7 @@ window.openWorshipPop=async(event,did,mid,wType)=>{
     </div>
     <div class="pop-sec">
       <div class="pop-sec-label">줌</div>
-      <div class="pop-row">${times.filter(t=>t!=='당일방문').map(t=>`<button class="pop-btn ${cur.type==='zoom'&&cur.time===t?'pop-on':''}" onclick="setWorship('${did}','${mid}','${wType}','zoom','${t}',null)">${t}</button>`).join('')}</div>
+      <div class="pop-row">${[...times.filter(t=>t!=='당일방문'),ZOOM_EXTRA].map(t=>`<button class="pop-btn ${cur.type==='zoom'&&cur.time===t?'pop-on':''}" onclick="setWorship('${did}','${mid}','${wType}','zoom','${t}',null)">${t}</button>`).join('')}</div>
     </div>
     <div class="pop-sec">
       <div class="pop-sec-label">사유출석</div>
@@ -317,8 +385,7 @@ window.openWorshipPop=async(event,did,mid,wType)=>{
     <button class="pop-clear" onclick="setWorship('${did}','${mid}','${wType}',null,null,null)">✕ 미출석</button>`;
 
   const rect=(event.currentTarget||event.target).getBoundingClientRect();
-  pop.style.top=(rect.bottom+4)+'px';
-  pop.style.left=Math.max(4,Math.min(rect.left,window.innerWidth-200))+'px';
+  positionPop(pop,rect,200,260);
   document.body.appendChild(pop);activePop=pop;
   setTimeout(()=>document.addEventListener('click',closePop,{once:true}),50);
 };
@@ -338,8 +405,7 @@ window.openMemoPop=async(event,did,mid,wType)=>{
       <button class="pop-clear" style="flex:none;width:auto;padding:4px 10px" onclick="closePop()">닫기</button>
     </div>`;
   const rect=(event.currentTarget||event.target).getBoundingClientRect();
-  pop.style.top=(rect.bottom+4)+'px';
-  pop.style.left=Math.max(4,Math.min(rect.left-60,window.innerWidth-220))+'px';
+  positionPop(pop,rect,220,160);
   document.body.appendChild(pop);activePop=pop;
   pop.querySelector('#memo-input').focus();
 };
@@ -374,8 +440,7 @@ window.openDynPop=async(event,did,mid,listType)=>{
       ${items.map(([id,v])=>`<button class="pop-btn ${done[id]?'pop-on':''}" id="dpb-${id}" onclick="toggleDynPop('${did}','${mid}','${id}','${listType}','${key}')">${done[id]?'✓ ':''}${v.name}</button>`).join('')}
     </div>`;
   const rect=(event.currentTarget||event.target).getBoundingClientRect();
-  pop.style.top=(rect.bottom+4)+'px';
-  pop.style.left=Math.max(4,Math.min(rect.left,window.innerWidth-210))+'px';
+  positionPop(pop,rect,210,180);
   document.body.appendChild(pop);activePop=pop;
   setTimeout(()=>document.addEventListener('click',closePop,{once:true}),50);
 };
@@ -407,6 +472,7 @@ window.toggleExtra=async(did,mid,id)=>{const p=`monthly/${did}/${currentMonthId}
 // ── 달성여부 / 목표 ──
 window.setResult=async(did,mid,result)=>{const p=`weekly/${did}/${currentWeekId}/${mid}/goal/prevResult`;const s=await get(ref(db,p));await set(ref(db,p),s.val()===result?null:result);await loadFaithWeek();};
 window.saveGoal=async(did,mid,value)=>{if(!canEdit())return;await set(ref(db,`weekly/${did}/${currentWeekId}/${mid}/goal/text`),value.trim());};
+window.saveLeaderNote=async(did,mid,value)=>{if(!isRegion())return;await set(ref(db,`weekly/${did}/${currentWeekId}/${mid}/goal/leaderNote`),value.trim());};
 
 // ════════════════════════
 // ── 동적 목록 관리 ──
@@ -452,13 +518,18 @@ const PF_FIELDS=['birth','baptismDate','phone','address','workplace','contactMet
   'relationship','mbti','enneagram','personality','worshipPattern','worshipLevel',
   'offeringNote','faithLevel','faithNote','eduLevel','eduNote','evangelismNote',
   'familyNote','workSchedule','economicNote','visitTime','caution','prayer','notes',
-  'prevLeader','prevLeaderContact','spiritLevel'];
+  'prevLeader','prevLeaderContact','spiritLevel','faithType','faithTypeNote','worshipLevelNote','faithLevelNote'];
 
 window.openProfile=async(did,mid,name)=>{
   profileDid=did;profileMid=mid;
   document.getElementById('profile-name').textContent=name;
-  const snap=await get(ref(db,`memberDetail/${did}/${mid}`));
-  const d=snap.val()||{};
+  const[detailSnap2,memberSnap]=await Promise.all([
+    get(ref(db,`memberDetail/${did}/${mid}`)),
+    get(ref(db,`members/${did}/${mid}`))
+  ]);
+  const d=detailSnap2.val()||{};
+  // 연락처 자동 연동
+  if(!d.phone&&memberSnap.exists()){d.phone=memberSnap.val()?.phone||'';}
   PF_FIELDS.forEach(f=>{const el=document.getElementById('pf-'+f);if(el)el.value=d[f]||'';});
   // 수준 버튼 복원
   ['worshipLevel','faithLevel','eduLevel'].forEach(f=>{
@@ -466,6 +537,10 @@ window.openProfile=async(did,mid,name)=>{
       b.classList.toggle('level-on',b.dataset.val===(d[f]||''));
     });
   });
+  // 신앙유형 복원
+  document.querySelectorAll('.level-btn[data-field="faithType"]').forEach(b=>b.classList.toggle('level-on',b.dataset.val===(d.faithType||'')));
+  const fnWrap=document.getElementById('faith-type-note-wrap');
+  if(fnWrap)fnWrap.style.display=d.faithType==='부분가족신앙'?'block':'none';
   // 심령 단계 복원
   const spiritKey=d.spiritLevel||'';
   document.querySelectorAll('.spirit-btn').forEach(b=>b.classList.toggle('spirit-on',b.dataset.key===spiritKey));
@@ -486,6 +561,13 @@ window.setLevel=(field,val)=>{
   if(!canEdit())return;
   document.querySelectorAll(`.level-btn[data-field="${field}"]`).forEach(b=>b.classList.toggle('level-on',b.dataset.val===val));
   const el=document.getElementById('pf-'+field);if(el)el.value=val;
+};
+window.setFaithType=(val)=>{
+  if(!canEdit())return;
+  document.querySelectorAll('.level-btn[data-field="faithType"]').forEach(b=>b.classList.toggle('level-on',b.dataset.val===val));
+  const el=document.getElementById('pf-faithType');if(el)el.value=val;
+  const noteWrap=document.getElementById('faith-type-note-wrap');
+  if(noteWrap)noteWrap.style.display=val==='부분가족신앙'?'block':'none';
 };
 window.setSpiritLevel=(key)=>{
   document.querySelectorAll('.spirit-btn').forEach(b=>b.classList.toggle('spirit-on',b.dataset.key===key));
@@ -667,6 +749,14 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .week-pick-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:.75rem;cursor:pointer;color:var(--muted);text-align:left;line-height:1.5}
 .week-pick-btn:hover{border-color:var(--accent);color:var(--accent)}
 .week-pick-btn.wk-on{background:rgba(108,143,255,.2);border-color:var(--accent);color:var(--accent);font-weight:600}
+.calendar-pop{min-width:236px}
+.cal-header{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:.62rem;color:var(--muted);margin-bottom:3px;padding:0 2px}
+.cal-week{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;border-radius:6px;cursor:pointer;padding:3px 2px;transition:background .15s}
+.cal-week:hover{background:rgba(108,143,255,.12)}
+.cal-week.cal-week-on{background:rgba(108,143,255,.2);border:1px solid var(--accent)}
+.cal-day{font-size:.75rem;padding:3px 0;line-height:1.4}
+.cal-dim{opacity:.3}
+.cal-this{color:var(--accent);font-weight:700}
 .table-scroll{overflow-x:auto;flex:1}
 .faith-table{width:100%;border-collapse:collapse;font-size:.78rem}
 
@@ -687,9 +777,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .col-weekly{background:#1a1a26}
 .col-monthly{color:var(--monthly)!important;background:#1a1508}
 .col-extra{background:#20141e}
-.col-prev-goal{min-width:100px;text-align:left;padding-left:6px}
+.col-prev-goal{min-width:120px;text-align:left;padding-left:6px}
 .col-result{width:60px}
 .col-cur-goal{min-width:120px;text-align:left;padding-left:6px}
+.col-leader-note{min-width:100px;text-align:left;padding-left:6px;color:#a78bfa!important}
 .muted-th{color:var(--muted)!important;opacity:.4}
 
 /* 테이블 행 */
@@ -704,6 +795,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .memo-icon:hover{opacity:1}
 .memo-icon.memo-has{opacity:.9;filter:sepia(1) saturate(3) hue-rotate(10deg)}
 .w-empty{color:var(--muted);font-size:.75rem}
+.w-none{color:rgba(248,113,113,.5);font-size:.82rem;font-weight:600}
 .col-dyn-td{text-align:center;padding:6px 2px;cursor:pointer;font-size:.8rem;color:var(--muted);min-width:44px}
 .col-dyn-td:hover{background:rgba(74,222,128,.08)}
 .col-dyn-td.dyn-done{color:var(--success);font-weight:700}
@@ -721,6 +813,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .result-on.r-△{background:rgba(246,169,53,.15);color:var(--monthly);border-color:var(--monthly)}
 .result-on.r-✕{background:rgba(248,113,113,.15);color:var(--danger);border-color:var(--danger)}
 .col-cur-goal-td{padding:4px 8px 4px 4px;min-width:120px}
+.col-leader-note-td{padding:4px 8px 4px 4px;min-width:100px}
 .goal-input{width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:inherit;font-size:.78rem;padding:3px 2px;outline:none}
 .goal-input:focus{border-bottom-color:var(--accent)}
 .goal-input::placeholder{color:var(--muted)}
@@ -917,7 +1010,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
               <span class="si-icon">🚪</span><span class="si-label">로그아웃</span>
             </div>
           </div>
-          <div class="settings-ver">구역 관리 v2.1</div>
+          <div class="settings-ver">구역 관리 v2.2</div>
         </div>
       </div>
     </div>
@@ -963,8 +1056,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
           <input id="pf-birth" class="pf-input pf-editable" placeholder="예: 1996.06.29">
         </div>
         <div class="pf-field">
-          <label class="pf-label">입교년월</label>
-          <input id="pf-baptismDate" class="pf-input pf-editable" placeholder="예: 2014.11">
+          <label class="pf-label">고유번호</label>
+          <input id="pf-baptismDate" class="pf-input pf-editable" placeholder="예: 00350329-12345">
         </div>
         <div class="pf-field">
           <label class="pf-label">연락처</label>
@@ -977,6 +1070,18 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
         <div class="pf-field full">
           <label class="pf-label">주소 / 거주지</label>
           <input id="pf-address" class="pf-input pf-editable" placeholder="거주지 주소">
+        </div>
+        <div class="pf-field full">
+          <label class="pf-label">신앙 유형</label>
+          <div style="display:flex;gap:6px;margin-top:2px;flex-wrap:wrap">
+            <button class="level-btn pf-editable" data-field="faithType" data-val="가족신앙" onclick="setFaithType('가족신앙')">가족신앙</button>
+            <button class="level-btn pf-editable" data-field="faithType" data-val="홀신앙" onclick="setFaithType('홀신앙')">홀신앙</button>
+            <button class="level-btn pf-editable" data-field="faithType" data-val="부분가족신앙" onclick="setFaithType('부분가족신앙')">부분가족신앙</button>
+          </div>
+          <input type="hidden" id="pf-faithType">
+          <div id="faith-type-note-wrap" style="display:none;margin-top:6px">
+            <textarea id="pf-faithTypeNote" class="pf-input pf-textarea pf-editable" placeholder="부분 가족신앙 세부 내용 (예: 어머니만 신앙인)"></textarea>
+          </div>
         </div>
       </div>
     </div>
@@ -1028,10 +1133,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
       <div class="profile-section-title">⛪ 예배 생활</div>
       <div class="pf-field" style="margin-bottom:10px">
         <label class="pf-label">예배 수준</label>
-        <div class="level-group">
-          <button class="level-btn pf-editable" data-field="worshipLevel" data-val="상" onclick="setLevel('worshipLevel','상')">상</button>
-          <button class="level-btn pf-editable" data-field="worshipLevel" data-val="중" onclick="setLevel('worshipLevel','중')">중</button>
-          <button class="level-btn pf-editable" data-field="worshipLevel" data-val="하" onclick="setLevel('worshipLevel','하')">하</button>
+        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+          <div class="level-group" style="flex-shrink:0">
+            <button class="level-btn pf-editable" data-field="worshipLevel" data-val="상" onclick="setLevel('worshipLevel','상')">상</button>
+            <button class="level-btn pf-editable" data-field="worshipLevel" data-val="중" onclick="setLevel('worshipLevel','중')">중</button>
+            <button class="level-btn pf-editable" data-field="worshipLevel" data-val="하" onclick="setLevel('worshipLevel','하')">하</button>
+          </div>
+          <input id="pf-worshipLevelNote" class="pf-input pf-editable" placeholder="근거 (예: 주일 대면 개근, 삼일 줌)" style="flex:1;min-width:140px">
         </div>
         <input type="hidden" id="pf-worshipLevel">
       </div>
@@ -1050,10 +1158,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
       <div class="profile-section-title">📖 신앙 상태</div>
       <div class="pf-field" style="margin-bottom:10px">
         <label class="pf-label">신앙 수준</label>
-        <div class="level-group">
-          <button class="level-btn pf-editable" data-field="faithLevel" data-val="상" onclick="setLevel('faithLevel','상')">상</button>
-          <button class="level-btn pf-editable" data-field="faithLevel" data-val="중" onclick="setLevel('faithLevel','중')">중</button>
-          <button class="level-btn pf-editable" data-field="faithLevel" data-val="하" onclick="setLevel('faithLevel','하')">하</button>
+        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+          <div class="level-group" style="flex-shrink:0">
+            <button class="level-btn pf-editable" data-field="faithLevel" data-val="상" onclick="setLevel('faithLevel','상')">상</button>
+            <button class="level-btn pf-editable" data-field="faithLevel" data-val="중" onclick="setLevel('faithLevel','중')">중</button>
+            <button class="level-btn pf-editable" data-field="faithLevel" data-val="하" onclick="setLevel('faithLevel','하')">하</button>
+          </div>
+          <input id="pf-faithLevelNote" class="pf-input pf-editable" placeholder="근거 (예: 약속의 목자 믿음 상, 성경 노트 지참)" style="flex:1;min-width:140px">
         </div>
         <input type="hidden" id="pf-faithLevel">
       </div>
@@ -1067,7 +1178,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <div class="profile-section">
       <div class="profile-section-title">🎓 교육</div>
       <div class="pf-field" style="margin-bottom:10px">
-        <label class="pf-label">교육 열망</label>
+        <label class="pf-label">교육 참여</label>
         <div class="level-group">
           <button class="level-btn pf-editable" data-field="eduLevel" data-val="상" onclick="setLevel('eduLevel','상')">상</button>
           <button class="level-btn pf-editable" data-field="eduLevel" data-val="중" onclick="setLevel('eduLevel','중')">중</button>
