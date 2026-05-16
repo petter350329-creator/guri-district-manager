@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+${_spBadge}<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -290,9 +290,9 @@ async function loadFaithWeek(){
       </tr>
       <tr class="sub-head-row">
         <th class="col-worship">삼일</th>
-        <th class="col-worship" style="border-right:1px solid rgba(133,183,235,.2)">주일</th>
+        <th class="col-worship">주일</th>
         <th class="col-tags-head">받은 교육</th>
-        <th class="col-tags-head" style="border-right:1px solid rgba(93,202,133,.2)">모임(봉사)</th>
+        <th class="col-tags-head">모임(봉사)</th>
         <th class="col-chk col-weekly" title="주정헌금">주정</th>
         <th class="col-chk col-monthly" title="십일조(월간)">십일</th>
         <th class="col-chk col-monthly" title="건축헌금(월간)">건축</th>
@@ -329,41 +329,90 @@ async function loadFaithWeek(){
       return`<span style="color:${c};font-size:.72rem;white-space:nowrap">${s}<br><span style="font-size:.65rem;opacity:.8">${sub}</span></span>${memoIcon}`;
     };
 
-    const _rMap={'○':'⭕','△':'🔺','✕':'❌'};
-    const resultBtns=['○','△','✕'].map(r=>`<button class="result-btn ${goal.prevResult===r?'result-on r-'+r:''}" title="${r==='○'?'달성':r==='△'?'부분달성':'미달성'}" onclick="${canEdit()?`setResult('${did}','${mid}','${r}')`:''}">${_rMap[r]}</button>\`).join('');
+    const resultBtns=['○','△','✕'].map(r=>`<button class="result-btn ${goal.prevResult===r?'result-on r-'+r:''}" onclick="${canEdit()?`setResult('${did}','${mid}','${r}')`:''}">${r}</button>`).join('');
 
     const tr=document.createElement('tr');
     tr.className='faith-row';tr.dataset.mid=mid;
-    tr.innerHTML=`
-      <td class="col-name-td">
-        <span class="member-name-cell" onclick="openProfile('${did}','${mid}','${member.name}')">${member.name}</span>
-        ${_spBadge}
-      </td>
-      <td class="col-worship-td" onclick="${canEdit()?`openWorshipPop(event,'${did}','${mid}','samil')`:''}">${wLabel(worship.samil,'samil')}</td>
-      <td class="col-worship-td" onclick="${canEdit()?`openWorshipPop(event,'${did}','${mid}','juil')`:''}">${wLabel(worship.juil,'juil')}</td>
-      <td class="col-tags-td" onclick="${canEdit()?`openDynPop(event,'${did}','${mid}','edu')`:''}">${Object.keys(eduDone).filter(id=>eduDone[id]).map(id=>`<span class="item-badge" ondblclick="event.stopPropagation();${canEdit()?`removeDyn('${did}','${mid}','${id}','edu')`:''}">${eduListCache[id]?.name||'?'}</span>`).join('')}${canEdit()?`<span class="badge-add">+</span>`:''}</td>
-      <td class="col-tags-td" onclick="${canEdit()?`openDynPop(event,'${did}','${mid}','service')`:''}">${Object.keys(svcDone).filter(id=>svcDone[id]).map(id=>`<span class="item-badge svc-badge" ondblclick="event.stopPropagation();${canEdit()?`removeDyn('${did}','${mid}','${id}','service')`:''}">${serviceListCache[id]?.name||'?'}</span>`).join('')}${canEdit()?`<span class="badge-add">+</span>`:''}</td>
-      <td class="col-chk-td ${w.offering?.weekly?'checked':''}" onclick="${canEdit()?`toggleWkly('${did}','${mid}')`:''}">${w.offering?.weekly?'✓':''}</td>
-      <td class="col-chk-td col-monthly-td ${mOff.tithe?'checked':''}" onclick="${canEdit()?`toggleMonthly('${did}','${mid}','tithe')`:''}">${mOff.tithe?'✓':''}</td>
-      <td class="col-chk-td col-monthly-td offering-last ${mOff.construction?'checked':''}" onclick="${canEdit()?`toggleMonthly('${did}','${mid}','construction')`:''}">${mOff.construction?'✓':''}</td>
-      ${extraCols.map(([id])=>`<td class="col-chk-td col-extra-td ${mOff.extras?.[id]?'checked':''}" onclick="${canEdit()?`toggleExtra('${did}','${mid}','${id}')`:''}">${mOff.extras?.[id]?'✓':''}</td>`).join('')}
-      <td class="col-prev-goal-td">
-        ${goal.prevText?`<div style="font-size:.72rem;color:var(--muted)">${goal.prevText}</div>`:''}
-        ${goal.prevLeaderNote?`<div style="font-size:.67rem;color:#a78bfa;margin-top:2px">💬 ${goal.prevLeaderNote}</div>`:''}
-      </td>
-      <td class="col-result-td">${resultBtns}</td>
-      <td class="col-cur-goal-td">
-        <input class="goal-input" type="text" value="${goal.text||''}" placeholder="이번주 목표…" ${!canEdit()?'readonly':''} onblur="saveGoal('${did}','${mid}',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
-        <input class="goal-input leader-note-input" type="text" value="${goal.leaderNote||''}" placeholder="💬 임원 조언…" ${!isRegion()?'readonly':''} onblur="saveLeaderNote('${did}','${mid}',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
-      </td>`;
+
+    const eduBadges=Object.keys(eduDone).filter(id=>eduDone[id])
+      .map(id=>'<span class="item-badge" data-did="'+did+'" data-mid="'+mid+'" data-id="'+id+'" data-dtype="edu">'+( eduListCache[id]?.name||'?')+'</span>').join('');
+    const svcBadges=Object.keys(svcDone).filter(id=>svcDone[id])
+      .map(id=>'<span class="item-badge svc-badge" data-did="'+did+'" data-mid="'+mid+'" data-id="'+id+'" data-dtype="service">'+(serviceListCache[id]?.name||'?')+'</span>').join('');
+    const resultBtns=['○','△','✕'].map(r=>{
+      const on=goal.prevResult===r;
+      return '<button class="result-btn'+(on?' result-on r-'+r:'')+'" data-did="'+did+'" data-mid="'+mid+'" data-r="'+r+'">'+r+'</button>';
+    }).join('');
+
+    const wLabel=(data,wType)=>{
+      if(!data||!data.type)return'<span class="w-none">—</span>';
+      const cfg={present:{c:'var(--success)',s:'●'},zoom:{c:'var(--accent)',s:'Z'},excuse:{c:'var(--monthly)',s:'사'}};
+      const{c,s}=cfg[data.type]||{c:'var(--muted)',s:'?'};
+      const sub=data.time||data.excuseType||'';
+      const memo=data.type==='excuse'?'<span class="memo-icon'+(data.excuseNote?' memo-has':'')+'" data-did="'+did+'" data-mid="'+mid+'" data-wtype="'+wType+'" title="'+(data.excuseNote||'메모 추가')+'">📝</span>':'';
+      return'<span style="color:'+c+';font-size:.72rem;white-space:nowrap">'+s+'<br><span style="font-size:.65rem;opacity:.8">'+sub+'</span></span>'+memo;
+    };
+
+    tr.innerHTML='<td class="col-name-td">'
+      +'<span class="member-name-cell" data-did="'+did+'" data-mid="'+mid+'" data-name="'+member.name+'">'+member.name+'</span>'
+      +(_spBadge||'')
+      +'</td>'
+      +'<td class="col-worship-td" data-did="'+did+'" data-mid="'+mid+'" data-wtype="samil">'+wLabel(worship.samil,'samil')+'</td>'
+      +'<td class="col-worship-td" style="border-right:1px solid rgba(133,183,235,.2)" data-did="'+did+'" data-mid="'+mid+'" data-wtype="juil">'+wLabel(worship.juil,'juil')+'</td>'
+      +'<td class="col-tags-td" data-did="'+did+'" data-mid="'+mid+'" data-dtype="edu">'+eduBadges+(canEdit()?'<span class="badge-add">+</span>':'')+'</td>'
+      +'<td class="col-tags-td" style="border-right:1px solid rgba(93,202,133,.2)" data-did="'+did+'" data-mid="'+mid+'" data-dtype="service">'+svcBadges+(canEdit()?'<span class="badge-add">+</span>':'')+'</td>'
+      +'<td class="col-chk-td'+(w.offering?.weekly?' checked':'')+'" data-did="'+did+'" data-mid="'+mid+'" data-action="wkly">'+(w.offering?.weekly?'✓':'')+'</td>'
+      +'<td class="col-chk-td col-monthly-td'+(mOff.tithe?' checked':'')+'" data-did="'+did+'" data-mid="'+mid+'" data-action="tithe">'+(mOff.tithe?'✓':'')+'</td>'
+      +'<td class="col-chk-td col-monthly-td offering-last'+(mOff.construction?' checked':'')+'" data-did="'+did+'" data-mid="'+mid+'" data-action="construction">'+(mOff.construction?'✓':'')+'</td>'
+      +extraCols.map(([id])=>'<td class="col-chk-td col-extra-td'+(mOff.extras?.[id]?' checked':'')+'" data-did="'+did+'" data-mid="'+mid+'" data-action="extra" data-eid="'+id+'">'+(mOff.extras?.[id]?'✓':'')+'</td>').join('')
+      +'<td class="col-prev-goal-td">'
+        +(goal.prevText?'<div style="font-size:.72rem;color:var(--muted)">'+goal.prevText+'</div>':'')
+        +(goal.prevLeaderNote?'<div style="font-size:.67rem;color:#a78bfa;margin-top:2px">💬 '+goal.prevLeaderNote+'</div>':'')
+      +'</td>'
+      +'<td class="col-result-td">'+resultBtns+'</td>'
+      +'<td class="col-cur-goal-td">'
+        +'<input class="goal-input" type="text" value="'+goalText+'" placeholder="이번주 목표…"'+(canEdit()?'':' readonly')+' onblur="saveGoal(''+did+'',''+mid+'',this.value)" onkeydown="if(event.key==='Enter')this.blur()">'
+        +'<input class="goal-input leader-note-input" type="text" value="'+leaderText+'" placeholder="💬 임원 조언…"'+(isRegion()?'':' readonly')+' onblur="saveLeaderNote(''+did+'',''+mid+'',this.value)" onkeydown="if(event.key==='Enter')this.blur()">'
+      +'</td>';
     tbody.appendChild(tr);
   });
+
+  const tb=document.getElementById('faith-tbody');
+  if(tb){tb.addEventListener('click',handleTableClick);tb.addEventListener('dblclick',handleTableDblClick);}
 
   if(!active.length){
     document.getElementById('faith-tbody').innerHTML=`<tr><td colspan="20" style="text-align:center;padding:40px;color:var(--muted);font-size:.85rem">구역원이 없습니다<br><button class="btn-xs" style="margin-top:8px" onclick="openMemberModal('${did}')">＋ 구역원 추가</button></td></tr>`;
   }
 }
 window.loadFaithWeek=loadFaithWeek;
+
+function handleTableClick(e){
+  const t=e.target;
+  const nameCell=t.closest('.member-name-cell');
+  if(nameCell){openProfile(nameCell.dataset.did,nameCell.dataset.mid,nameCell.dataset.name);return;}
+  if(t.classList.contains('memo-icon')){e.stopPropagation();openMemoPop(e,t.dataset.did,t.dataset.mid,t.dataset.wtype);return;}
+  if(!canEdit())return;
+  const worshipTd=t.closest('.col-worship-td');
+  if(worshipTd){openWorshipPop(e,worshipTd.dataset.did,worshipTd.dataset.mid,worshipTd.dataset.wtype);return;}
+  const dynTd=t.closest('.col-tags-td');
+  if(dynTd&&!t.classList.contains('item-badge')){openDynPop(e,dynTd.dataset.did,dynTd.dataset.mid,dynTd.dataset.dtype);return;}
+  const chkTd=t.closest('.col-chk-td');
+  if(chkTd){
+    const{did,mid,action,eid}=chkTd.dataset;
+    if(action==='wkly')toggleWkly(did,mid);
+    else if(action==='tithe')toggleMonthly(did,mid,'tithe');
+    else if(action==='construction')toggleMonthly(did,mid,'construction');
+    else if(action==='extra')toggleExtra(did,mid,eid);
+    return;
+  }
+  const rBtn=t.closest('.result-btn');
+  if(rBtn){setResult(rBtn.dataset.did,rBtn.dataset.mid,rBtn.dataset.r);return;}
+}
+function handleTableDblClick(e){
+  if(!canEdit())return;
+  const badge=e.target.closest('.item-badge');
+  if(badge){e.stopPropagation();removeDyn(badge.dataset.did,badge.dataset.mid,badge.dataset.id,badge.dataset.dtype);}
+}
+
 
 // ── 예배 팝오버 ──
 const SAMIL_TIMES=['12시','19시','20시','당일방문'];
@@ -773,9 +822,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 /* 섹터 헤더 */
 .sector-row th{font-size:.72rem;font-weight:700;padding:5px 4px;border-bottom:.5px solid var(--border);text-align:center;position:sticky;top:0;z-index:3;white-space:nowrap}
 .sector-head{letter-spacing:.03em}
-.s-worship{background:#1a2235;color:#85b7eb;border-bottom:.5px solid #2a3d5a;border-right:2px solid rgba(133,183,235,.25)}
-.s-edu{background:#1a2a1a;color:#5dca85;border-bottom:.5px solid #2a4a2a;border-right:2px solid rgba(93,202,133,.25)}
-.s-svc{background:#2a2015;color:#ef9f5a;border-bottom:.5px solid #4a3a1a;border-right:2px solid rgba(239,159,90,.25)}
+.s-worship{background:#1a2235;color:#85b7eb;border-bottom:.5px solid #2a3d5a;border-right:2px solid #2a3d5a}
+.s-edu{background:#1a2a1a;color:#5dca85;border-bottom:.5px solid #2a4a2a}
+.s-svc{background:#2a2015;color:#ef9f5a;border-bottom:.5px solid #4a3a1a;border-right:2px solid #4a3a1a}
 .s-offering{background:#251520;color:#c97ab5;border-bottom:.5px solid #4a2a3a}
 .s-goal{background:#1e1a2a;color:#a78bfa;border-bottom:.5px solid #3a2a4a}
 
@@ -788,7 +837,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .col-monthly{color:var(--monthly)!important;background:#1a1508}
 .col-extra{background:#20141e}
 .col-prev-goal{min-width:120px;text-align:left;padding-left:6px}
-.col-result{width:90px;text-align:center}
+.col-result{width:60px}
 .col-cur-goal{min-width:120px;text-align:left;padding-left:6px}
 
 .muted-th{color:var(--muted)!important;opacity:.4}
@@ -813,16 +862,15 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .col-chk-td:hover{background:rgba(108,143,255,.1)}
 .col-chk-td.checked{color:var(--accent);font-weight:700}
 .col-monthly-td.checked{color:var(--monthly)!important}
-.offering-last{border-right:1px solid rgba(201,122,181,.2)!important}
 .col-extra-td.checked{color:#c97ab5!important}
 .col-prev-goal-td{padding:4px 6px;font-size:.72rem;color:var(--muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .col-result-td{padding:3px 2px;text-align:center;white-space:nowrap}
-.result-btn{background:transparent;border:none;border-radius:6px;padding:2px 4px;font-size:1.2rem;cursor:pointer;line-height:1;margin:1px;transition:all .15s;opacity:.35}
-.result-btn:hover{opacity:.8;transform:scale(1.1)}
-.result-on{opacity:1!important;transform:scale(1.15)}
-.result-on.r-○{filter:drop-shadow(0 0 4px rgba(74,222,128,.6))}
-.result-on.r-△{filter:drop-shadow(0 0 4px rgba(246,169,53,.6))}
-.result-on.r-✕{filter:drop-shadow(0 0 4px rgba(248,113,113,.6))}
+.result-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 11px;font-size:.9rem;cursor:pointer;color:var(--muted);margin:1px;transition:all .15s;font-weight:600;min-width:32px}
+.result-btn:hover{border-color:var(--accent)}
+.result-on{font-weight:700}
+.result-on.r-○{background:rgba(74,222,128,.15);color:var(--success);border-color:var(--success)}
+.result-on.r-△{background:rgba(246,169,53,.15);color:var(--monthly);border-color:var(--monthly)}
+.result-on.r-✕{background:rgba(248,113,113,.15);color:var(--danger);border-color:var(--danger)}
 .col-cur-goal-td{padding:4px 8px 4px 4px;min-width:120px}
 
 .goal-input{width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:inherit;font-size:.78rem;padding:3px 2px;outline:none}
@@ -1023,7 +1071,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
               <span class="si-icon">🚪</span><span class="si-label">로그아웃</span>
             </div>
           </div>
-          <div class="settings-ver">구역 관리 v2.6</div>
+          <div class="settings-ver">구역 관리 v2.7</div>
         </div>
       </div>
     </div>
