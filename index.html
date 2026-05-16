@@ -317,6 +317,8 @@ async function loadFaithWeek(){
   active.forEach(([mid,member])=>{
     const w=weekData[mid]||{},m=monthData[mid]||{};
     const worship=w.worship||{},mOff=m.offering||{},goal=w.goal||{};
+    const goalText=goal.text||'';
+    const leaderText=goal.leaderNote||'';
     const eduDone=w.education||{},svcDone=w.service||{};
 
     const wLabel=(data,wType)=>{
@@ -351,8 +353,8 @@ async function loadFaithWeek(){
       </td>
       <td class="col-result-td">${resultBtns}</td>
       <td class="col-cur-goal-td">
-        <input class="goal-input" type="text" value="${(goal.text||'').replace(/"/g,'&quot;')}" placeholder="이번주 목표…" ${!canEdit()?'readonly':''} data-did="${did}" data-mid="${mid}" data-type="goal">
-        <input class="goal-input leader-note-input" type="text" value="${(goal.leaderNote||'').replace(/"/g,'&quot;')}" placeholder="💬 임원 조언…" ${!isRegion()?'readonly':''} data-did="${did}" data-mid="${mid}" data-type="leader">
+        <input class="goal-input" type="text" value="${goalText}" placeholder="이번주 목표…" ${!canEdit()?'readonly':''} data-did="${did}" data-mid="${mid}" data-type="goal">
+        <input class="goal-input leader-note-input" type="text" value="${leaderText}" placeholder="💬 임원 조언…" ${!isRegion()?'readonly':''} data-did="${did}" data-mid="${mid}" data-type="leader">
       </td>`;
     tbody.appendChild(tr);
   });
