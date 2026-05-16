@@ -75,7 +75,17 @@ function positionPop(pop,rect,minW,estH){
   pop.style.top=top+'px';
   pop.style.left=left+'px';
 }
-function closePop(e){if(activePop&&e&&activePop.contains(e.target))return;if(activePop){activePop.remove();activePop=null;}}
+function closePop(){if(activePop){activePop.remove();activePop=null;}const ov=document.getElementById('pop-overlay');if(ov)ov.remove();}
+function showPop(pop){
+  closePop();
+  const ov=document.createElement('div');
+  ov.id='pop-overlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:498;';
+  ov.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();closePop();},{once:true,capture:true});
+  document.body.appendChild(ov);
+  document.body.appendChild(pop);
+  activePop=pop;
+}
 
 // ── 인증 ──
 onAuthStateChanged(auth,async user=>{
@@ -183,8 +193,7 @@ window.openWeekPicker=(event)=>{
   pop.innerHTML=buildCal();
   window.calShift=(delta)=>{calMonth+=delta;if(calMonth<0){calMonth=11;calYear--;}if(calMonth>11){calMonth=0;calYear++;}pop.innerHTML=buildCal();};
   positionPop(pop,(event.currentTarget||event.target).getBoundingClientRect(),240,320);
-  document.body.appendChild(pop);activePop=pop;
-  setTimeout(()=>document.addEventListener('click',closePop,{once:true}),50);
+  showPop(pop);
 };
 window.selectWeek=(wk)=>{currentWeekId=wk;currentMonthId=monthFromWeek(wk);closePop();loadFaithWeek();};
 
@@ -279,7 +288,7 @@ async function loadFaithWeek(){
         <th colspan="${3+extraCols.length}" class="sector-head s-offering">
           💰 헌금 ${canManageLists()?`<button class="mgmt-btn" onclick="openListMgmt('extra','${did}')">관리</button>`:''}
         </th>
-        <th colspan="4" class="sector-head s-goal">🎯 단계향상 목표</th>
+        <th colspan="3" class="sector-head s-goal">🎯 단계향상 목표</th>
       </tr>
       <tr class="sub-head-row">
         <th class="col-worship">삼일</th>
@@ -292,8 +301,7 @@ async function loadFaithWeek(){
         ${extraCols.map(([,x])=>`<th class="col-chk col-extra">${x.name}</th>`).join('')}
         <th class="col-prev-goal">지난주 목표</th>
         <th class="col-result">달성</th>
-        <th class="col-cur-goal">이번주 목표</th>
-        <th class="col-leader-note">임원 첨언</th>
+        <th class="col-cur-goal">이번주 목표 + 임원 조언</th>
       </tr>
     </thead>
     <tbody id="faith-tbody"></tbody>
@@ -327,7 +335,7 @@ async function loadFaithWeek(){
     tr.innerHTML=`
       <td class="col-name-td">
         <span class="member-name-cell" onclick="openProfile('${did}','${mid}','${member.name}')">${member.name}</span>
-        ${(()=>{const spirit=SPIRIT_LEVELS.find(s=>s.key===(detailData[mid]?.spiritLevel||''));return spirit?`<span style="display:block;background:${spirit.bg};color:${spirit.color};border:0.5px solid ${spirit.border};border-radius:3px;padding:1px 5px;font-size:.58rem;margin-top:1px;white-space:nowrap">${spirit.label}</span>`:'';})()}
+        ${spirit?`<span style="display:block;background:${spirit.bg};color:${spirit.color};border:0.5px solid ${spirit.border};border-radius:3px;padding:1px 5px;font-size:.58rem;margin-top:1px;white-space:nowrap">${spirit.label}</span>`:''}
       </td>
       <td class="col-worship-td" onclick="${canEdit()?`openWorshipPop(event,'${did}','${mid}','samil')`:''}">${wLabel(worship.samil,'samil')}</td>
       <td class="col-worship-td" onclick="${canEdit()?`openWorshipPop(event,'${did}','${mid}','juil')`:''}">${wLabel(worship.juil,'juil')}</td>
@@ -342,9 +350,21 @@ async function loadFaithWeek(){
         ${goal.prevLeaderNote?`<div style="font-size:.67rem;color:#a78bfa;margin-top:2px">💬 ${goal.prevLeaderNote}</div>`:''}
       </td>
       <td class="col-result-td">${resultBtns}</td>
-      <td class="col-cur-goal-td"><input class="goal-input" type="text" value="${goal.text||''}" placeholder="목표…" ${!canEdit()?'readonly':''} onblur="saveGoal('${did}','${mid}',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></td>
-      <td class="col-leader-note-td"><input class="goal-input" type="text" value="${goal.leaderNote||''}" placeholder="임원 조언…" ${!isRegion()?'readonly':''} onblur="saveLeaderNote('${did}','${mid}',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></td>`;
+      <td class="col-cur-goal-td">
+        <input class="goal-input" type="text" value="${(goal.text||'').replace(/"/g,'&quot;')}" placeholder="이번주 목표…" ${!canEdit()?'readonly':''} data-did="${did}" data-mid="${mid}" data-type="goal">
+        <input class="goal-input leader-note-input" type="text" value="${(goal.leaderNote||'').replace(/"/g,'&quot;')}" placeholder="💬 임원 조언…" ${!isRegion()?'readonly':''} data-did="${did}" data-mid="${mid}" data-type="leader">
+      </td>`;
     tbody.appendChild(tr);
+  });
+
+  // goal-input 이벤트 (이벤트 위임)
+  document.getElementById('faith-tbody')?.querySelectorAll('.goal-input').forEach(inp=>{
+    inp.addEventListener('blur',async e=>{
+      const {did,mid,type}=e.target.dataset;
+      if(type==='goal')await saveGoal(did,mid,e.target.value);
+      else if(type==='leader')await saveLeaderNote(did,mid,e.target.value);
+    });
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')e.target.blur();});
   });
 
   if(!active.length){
@@ -386,8 +406,7 @@ window.openWorshipPop=async(event,did,mid,wType)=>{
 
   const rect=(event.currentTarget||event.target).getBoundingClientRect();
   positionPop(pop,rect,200,260);
-  document.body.appendChild(pop);activePop=pop;
-  setTimeout(()=>document.addEventListener('click',closePop,{once:true}),50);
+  showPop(pop);
 };
 // ── 사유출석 메모 팝오버 ──
 window.openMemoPop=async(event,did,mid,wType)=>{
@@ -406,7 +425,7 @@ window.openMemoPop=async(event,did,mid,wType)=>{
     </div>`;
   const rect=(event.currentTarget||event.target).getBoundingClientRect();
   positionPop(pop,rect,220,160);
-  document.body.appendChild(pop);activePop=pop;
+  showPop(pop);
   pop.querySelector('#memo-input').focus();
 };
 window.saveMemo=async(did,mid,wType)=>{
@@ -441,8 +460,7 @@ window.openDynPop=async(event,did,mid,listType)=>{
     </div>`;
   const rect=(event.currentTarget||event.target).getBoundingClientRect();
   positionPop(pop,rect,210,180);
-  document.body.appendChild(pop);activePop=pop;
-  setTimeout(()=>document.addEventListener('click',closePop,{once:true}),50);
+  showPop(pop);
 };
 
 window.toggleDynPop=async(did,mid,itemId,listType,key)=>{
@@ -763,10 +781,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 /* 섹터 헤더 */
 .sector-row th{font-size:.72rem;font-weight:700;padding:5px 4px;border-bottom:.5px solid var(--border);text-align:center;position:sticky;top:0;z-index:3;white-space:nowrap}
 .sector-head{letter-spacing:.03em}
-.s-worship{background:#1a2235;color:#85b7eb;border-bottom:.5px solid #2a3d5a}
-.s-edu{background:#1a2a1a;color:#5dca85;border-bottom:.5px solid #2a4a2a}
-.s-svc{background:#2a2015;color:#ef9f5a;border-bottom:.5px solid #4a3a1a}
-.s-offering{background:#251520;color:#c97ab5;border-bottom:.5px solid #4a2a3a}
+.s-worship{background:#1a2235;color:#85b7eb;border-bottom:.5px solid #2a3d5a;border-right:2px solid #2a3d5a}
+.s-edu{background:#1a2a1a;color:#5dca85;border-bottom:.5px solid #2a4a2a;border-right:2px solid #2a4a2a}
+.s-svc{background:#2a2015;color:#ef9f5a;border-bottom:.5px solid #4a3a1a;border-right:2px solid #4a3a1a}
+.s-offering{background:#251520;color:#c97ab5;border-bottom:.5px solid #4a2a3a;border-right:2px solid #4a2a3a}
 .s-goal{background:#1e1a2a;color:#a78bfa;border-bottom:.5px solid #3a2a4a}
 
 .sub-head-row th{font-size:.65rem;font-weight:600;color:var(--muted);padding:4px 3px;border-bottom:1px solid var(--border);text-align:center;position:sticky;top:28px;z-index:2;white-space:nowrap;background:var(--surface)}
@@ -803,16 +821,19 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .col-chk-td:hover{background:rgba(108,143,255,.1)}
 .col-chk-td.checked{color:var(--accent);font-weight:700}
 .col-monthly-td.checked{color:var(--monthly)!important}
+.sector-sep{border-right:2px solid rgba(255,255,255,.08)!important}
 .col-extra-td.checked{color:#c97ab5!important}
 .col-prev-goal-td{padding:4px 6px;font-size:.72rem;color:var(--muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .col-result-td{padding:3px 2px;text-align:center;white-space:nowrap}
-.result-btn{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-size:.82rem;cursor:pointer;color:var(--muted);margin:1px;transition:all .15s;font-weight:500}
+.result-btn{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:5px 10px;font-size:.9rem;cursor:pointer;color:var(--muted);margin:1px;transition:all .15s;font-weight:500;min-width:30px}
 .result-btn:hover{border-color:var(--accent)}
 .result-on{font-weight:700}
 .result-on.r-○{background:rgba(74,222,128,.15);color:var(--success);border-color:var(--success)}
 .result-on.r-△{background:rgba(246,169,53,.15);color:var(--monthly);border-color:var(--monthly)}
 .result-on.r-✕{background:rgba(248,113,113,.15);color:var(--danger);border-color:var(--danger)}
-.col-cur-goal-td{padding:4px 8px 4px 4px;min-width:120px}
+.col-cur-goal-td{padding:4px 8px 4px 4px;min-width:150px}
+.leader-note-input{color:#a78bfa!important;margin-top:3px;border-bottom-color:rgba(167,139,250,.3)!important}
+.leader-note-input::placeholder{color:rgba(167,139,250,.5)!important}
 .col-leader-note-td{padding:4px 8px 4px 4px;min-width:100px}
 .goal-input{width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:inherit;font-size:.78rem;padding:3px 2px;outline:none}
 .goal-input:focus{border-bottom-color:var(--accent)}
@@ -1010,7 +1031,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
               <span class="si-icon">🚪</span><span class="si-label">로그아웃</span>
             </div>
           </div>
-          <div class="settings-ver">구역 관리 v2.2</div>
+          <div class="settings-ver">구역 관리 v2.3</div>
         </div>
       </div>
     </div>
