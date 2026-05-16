@@ -299,6 +299,7 @@ window.saveMemo=async(did,mid,wType)=>{
   await set(ref(db,`weekly/${did}/${currentWeekId}/${mid}/worship/${wType}/excuseNote`),val||null);
   closePop();await loadFaithWeek();showToast('✅ 메모 저장됐어요');
 };
+window.setWorship=async(did,mid,wType,type,time,excuseType)=>{
   const path=`weekly/${did}/${currentWeekId}/${mid}/worship/${wType}`;
   if(!type)await set(ref(db,path),null);
   else await set(ref(db,path),{type,time:time||null,excuseType:excuseType||null});
