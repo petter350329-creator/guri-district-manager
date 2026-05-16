@@ -4,1025 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>구역 관리</title>
-<script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getDatabase, ref, set, get, push, remove, update } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
-
-const firebaseConfig = {
-  apiKey:"AIzaSyDpxfXPW464jphvj2K1uZqzUBEtX0jjiVQ",
-  authDomain:"guri-district-manager.firebaseapp.com",
-  databaseURL:"https://guri-district-manager-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:"guri-district-manager",
-  storageBucket:"guri-district-manager.firebasestorage.app",
-  messagingSenderId:"414381618941",
-  appId:"1:414381618941:web:5006d9086ef8bcc9ccb094"
-};
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getDatabase(app);
-
-// ── 전역 상태 ──
-let currentUser = null, userRole = null, userNickname = '';
-let userRegionId = null, userDistrictId = null;
-let currentWeekId = getWeekId(), currentMonthId = getMonthId();
-let regionsCache = {}, districtsCache = {};
-let faithDistrictId = null;
-let eduListCache = {}, serviceListCache = {}, extraOfferingCache = {};
-let activePop = null, activeOverlay = null;
-
-// ── 날짜 유틸 ──
-function getWeekId(d) {
-  const t = d ? new Date(d) : new Date();
-  const y = t.getFullYear();
-  const j = new Date(y, 0, 1);
-  return y + '-W' + String(Math.ceil(((t - j) / 86400000 + j.getDay() + 1) / 7)).padStart(2, '0');
-}
-function getMonthId(d) {
-  const t = d ? new Date(d) : new Date();
-  return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0');
-}
-function shiftWeek(w, d) {
-  const [y, wn] = w.split('-W');
-  let week = parseInt(wn) + d, year = parseInt(y);
-  if (week < 1) { year--; week = 52; }
-  if (week > 52) { year++; week = 1; }
-  return year + '-W' + String(week).padStart(2, '0');
-}
-function monthFromWeek(w) {
-  const [y, wn] = w.split('-W');
-  const j = new Date(parseInt(y), 0, 1);
-  const off = (parseInt(wn) - 1) * 7 - j.getDay() + 1;
-  const m = new Date(parseInt(y), 0, off);
-  return m.getFullYear() + '-' + String(m.getMonth() + 1).padStart(2, '0');
-}
-function getWeekLabel(w) {
-  const [y, wn] = w.split('-W');
-  const j = new Date(parseInt(y), 0, 1);
-  const off = (parseInt(wn) - 1) * 7 - j.getDay() + 1;
-  const m = new Date(parseInt(y), 0, off);
-  const s = new Date(m); s.setDate(m.getDate() + 6);
-  return (m.getMonth()+1) + '/' + m.getDate() + '~' + (s.getMonth()+1) + '/' + s.getDate();
-}
-
-// ── 심령 단계 ──
-const SPIRIT_LEVELS = [
-  { key:'fly',  label:'🦋 날라다녀', bg:'rgba(167,139,250,.18)', color:'#a78bfa', border:'rgba(167,139,250,.5)' },
-  { key:'run',  label:'🏃 뛰고있어', bg:'rgba(108,143,255,.18)', color:'#6c8fff', border:'rgba(108,143,255,.5)' },
-  { key:'walk', label:'🚶 걷고있어', bg:'rgba(74,222,128,.18)',  color:'#4ade80', border:'rgba(74,222,128,.5)'  },
-  { key:'lay',  label:'😪 누워있어', bg:'rgba(246,169,53,.18)',  color:'#f6a935', border:'rgba(246,169,53,.5)'  },
-  { key:'sleep',label:'😴 자고있어', bg:'rgba(248,113,113,.18)', color:'#f87171', border:'rgba(248,113,113,.5)' },
-];
-
-// ── 권한 ──
-const ROLE_LABEL = { superadmin:'관리자', chairman:'회장', region_admin:'임원', district_leader:'구역장' };
-const isSA       = () => userRole === 'superadmin';
-const isChairman = () => ['superadmin','chairman'].includes(userRole);
-const isRegion   = () => ['superadmin','chairman','region_admin'].includes(userRole);
-const isLeader   = () => ['superadmin','chairman','region_admin','district_leader'].includes(userRole);
-const canEdit    = () => isLeader();
-
-// ── UI 유틸 ──
-function showScreen(n) {
-  document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
-  const el = document.getElementById('screen-' + n);
-  if (el) el.style.display = 'flex';
-}
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
-}
-function openPop(pop, refEl, w, h) {
-  closePop();
-  const rect = refEl.getBoundingClientRect();
-  const margin = 8;
-  let top = rect.bottom + 4;
-  let left = Math.max(margin, Math.min(rect.left, window.innerWidth - (w||200) - margin));
-  if (top + (h||280) > window.innerHeight - margin) top = Math.max(margin, rect.top - (h||280) - 4);
-  pop.style.top = top + 'px';
-  pop.style.left = left + 'px';
-  const ov = document.createElement('div');
-  ov.id = 'pop-ov';
-  ov.style.cssText = 'position:fixed;inset:0;z-index:498';
-  ov.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); closePop(); }, { once:true, capture:true });
-  document.body.appendChild(ov);
-  document.body.appendChild(pop);
-  activePop = pop;
-}
-function closePop() {
-  if (activePop) { activePop.remove(); activePop = null; }
-  const ov = document.getElementById('pop-ov');
-  if (ov) ov.remove();
-}
-
-// ── 인증 ──
-onAuthStateChanged(auth, async user => {
-  if (!user) { currentUser = null; userRole = null; showScreen('login'); return; }
-  currentUser = user;
-  const uSnap = await get(ref(db, 'users/' + user.uid));
-  if (!uSnap.exists()) {
-    const allSnap = await get(ref(db, 'users'));
-    if (!allSnap.exists()) {
-      await set(ref(db, 'users/' + user.uid), { email:user.email, name:user.displayName, nickname:user.displayName, role:'superadmin', createdAt:Date.now() });
-    } else {
-      const emailKey = btoa(user.email).replace(/=/g, '');
-      const wSnap = await get(ref(db, 'whitelist/' + emailKey));
-      if (wSnap.exists()) {
-        const d = wSnap.val();
-        await set(ref(db, 'users/' + user.uid), { email:user.email, name:user.displayName, nickname:user.displayName, role:d.role, regionId:d.regionId||null, districtId:d.districtId||null, createdAt:Date.now() });
-      } else {
-        document.getElementById('reg-email').textContent = user.email;
-        showScreen('register'); return;
-      }
-    }
-  }
-  const uData = (await get(ref(db, 'users/' + user.uid))).val();
-  userRole = uData?.role || null;
-  userNickname = uData?.nickname || uData?.name || user.displayName || '';
-  userRegionId = uData?.regionId || null;
-  userDistrictId = uData?.districtId || null;
-  if (!userRole) { showScreen('pending'); return; }
-  const [rs, ds] = await Promise.all([get(ref(db,'regions')), get(ref(db,'districts'))]);
-  regionsCache = rs.val() || {}; districtsCache = ds.val() || {};
-  enterMain();
-});
-
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-window.doLogin = async () => {
-  try {
-    if (isMobile) await signInWithRedirect(auth, new GoogleAuthProvider());
-    else await signInWithPopup(auth, new GoogleAuthProvider());
-  } catch(e) { if (e.code !== 'auth/popup-closed-by-user') alert('로그인 실패: ' + e.message); }
-};
-getRedirectResult(auth).catch(() => {});
-window.doLogout = async () => await signOut(auth);
-
-window.submitRegister = async () => {
-  const name = document.getElementById('reg-name').value.trim();
-  const regionId = document.getElementById('reg-region-sel').value;
-  if (!name) { alert('이름을 입력해주세요'); return; }
-  if (!regionId) { alert('소속 지역을 선택해주세요'); return; }
-  await set(ref(db, 'requests/' + currentUser.uid), { email:currentUser.email, name, role:'district_leader', regionId, createdAt:Date.now() });
-  showScreen('pending');
-};
-
-// ── 메인 진입 ──
-function enterMain() {
-  document.querySelectorAll('.uname').forEach(el => el.textContent = userNickname);
-  document.querySelectorAll('.leader-only').forEach(el => el.style.display = isLeader() ? '' : 'none');
-  document.querySelectorAll('.region-only').forEach(el => el.style.display = isRegion() ? '' : 'none');
-  document.querySelectorAll('.chairman-only').forEach(el => el.style.display = isChairman() ? '' : 'none');
-  document.querySelectorAll('.sa-only').forEach(el => el.style.display = isSA() ? '' : 'none');
-  showScreen('main');
-  switchTab('faith');
-}
-
-window.switchTab = (tab) => {
-  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  const pane = document.getElementById('tab-' + tab);
-  const btn = document.querySelector('.tab-btn[data-tab="' + tab + '"]');
-  if (pane) pane.classList.add('active');
-  if (btn) btn.classList.add('active');
-  if (tab === 'faith') initFaithTab();
-  if (tab === 'evang') renderPlaceholder('evang-content', '🌱', '전도 관리');
-  if (tab === 'visit') renderPlaceholder('visit-content', '🫂', '심방 기록');
-  if (tab === 'stats') renderPlaceholder('stats-content', '📊', '통계 · 대시보드');
-};
-function renderPlaceholder(id, icon, label) {
-  const el = document.getElementById(id);
-  if (el) el.innerHTML = '<div class="empty-state"><div style="font-size:2.5rem">' + icon + '</div><p style="margin-top:12px">' + label + '<br>다음 버전 추가 예정</p></div>';
-}
-
-// ── 주차 이동 ──
-window.prevWeek = () => { currentWeekId = shiftWeek(currentWeekId, -1); currentMonthId = monthFromWeek(currentWeekId); loadFaithWeek(); };
-window.nextWeek = () => { const nw = shiftWeek(currentWeekId, 1); if (nw <= getWeekId()) { currentWeekId = nw; currentMonthId = monthFromWeek(currentWeekId); loadFaithWeek(); } };
-window.goDistrictList = () => { faithDistrictId = null; initFaithTab(); };
-
-// ── 달력 팝오버 ──
-window.openWeekPicker = (event) => {
-  const base = (() => { const [y,wn] = currentWeekId.split('-W'); const j = new Date(parseInt(y),0,1); const off=(parseInt(wn)-1)*7-j.getDay()+1; return new Date(parseInt(y),0,off); })();
-  let calYear = base.getFullYear(), calMonth = base.getMonth();
-  const pop = document.createElement('div');
-  pop.className = 'worship-pop calendar-pop';
-  function buildCal() {
-    const firstDay = new Date(calYear, calMonth, 1);
-    const lastDay  = new Date(calYear, calMonth + 1, 0);
-    let d = new Date(firstDay);
-    const dow = d.getDay(); d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
-    const weeks = [];
-    while (d <= lastDay) {
-      const days = [];
-      for (let i = 0; i < 7; i++) { days.push(new Date(d)); d.setDate(d.getDate() + 1); }
-      weeks.push({ wid: getWeekId(days[0]), days });
-      if (d.getMonth() > calMonth && d.getFullYear() >= calYear) break;
-    }
-    const mn = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
-    const todayWid = getWeekId();
-    let html = '<div class="pop-title" style="display:flex;align-items:center;gap:8px">'
-      + '<button class="pop-btn" id="cal-prev">◀</button>'
-      + '<span style="flex:1;text-align:center">' + calYear + '년 ' + mn[calMonth] + '</span>'
-      + '<button class="pop-btn" id="cal-next">▶</button></div>'
-      + '<div class="cal-header"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span><span>일</span></div>';
-    weeks.forEach(w => {
-      const isOn = w.wid === currentWeekId;
-      html += '<div class="cal-week' + (isOn ? ' cal-week-on' : '') + '" data-wid="' + w.wid + '">';
-      w.days.forEach(day => {
-        const dim = day.getMonth() !== calMonth;
-        const today = getWeekId(day) === todayWid;
-        html += '<span class="cal-day' + (dim?' cal-dim':'') + (today?' cal-this':'') + '">' + day.getDate() + '</span>';
-      });
-      html += '</div>';
-    });
-    return html;
-  }
-  pop.innerHTML = buildCal();
-  pop.addEventListener('click', e => {
-    if (e.target.id === 'cal-prev') { e.stopPropagation(); calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } pop.innerHTML = buildCal(); return; }
-    if (e.target.id === 'cal-next') { e.stopPropagation(); calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } pop.innerHTML = buildCal(); return; }
-    const week = e.target.closest('.cal-week');
-    if (week) { currentWeekId = week.dataset.wid; currentMonthId = monthFromWeek(currentWeekId); closePop(); loadFaithWeek(); }
-  });
-  openPop(pop, event.currentTarget || event.target, 240, 320);
-};
-
-// ── 동적 목록 로드 ──
-async function loadDynLists(did) {
-  const [es, ss, xs] = await Promise.all([
-    get(ref(db, 'eduList/' + did)),
-    get(ref(db, 'serviceList/' + did)),
-    get(ref(db, 'extraOfferings/' + did))
-  ]);
-  eduListCache = es.val() || {}; serviceListCache = ss.val() || {}; extraOfferingCache = xs.val() || {};
-}
-
-// ══════════════════════════════
-// 신앙관리 탭
-// ══════════════════════════════
-async function initFaithTab() {
-  const el = document.getElementById('faith-content');
-  if (userRole === 'district_leader') {
-    faithDistrictId = userDistrictId;
-    if (!faithDistrictId) { el.innerHTML = '<div class="empty-state"><p>소속 구역이 없습니다<br>임원에게 문의하세요</p></div>'; return; }
-    await loadFaithWeek(); return;
-  }
-  if (faithDistrictId) { await loadFaithWeek(); return; }
-  renderDistrictPicker(el, userRole === 'region_admin' ? userRegionId : null);
-}
-function renderDistrictPicker(el, filterRid) {
-  const byR = {};
-  Object.entries(districtsCache).forEach(([did, d]) => {
-    if (filterRid && d.regionId !== filterRid) return;
-    if (!byR[d.regionId]) byR[d.regionId] = [];
-    byR[d.regionId].push({ did, name: d.name });
-  });
-  if (!Object.keys(byR).length) { el.innerHTML = '<div class="empty-state"><p>구역이 없습니다</p></div>'; return; }
-  let html = '<div style="padding:20px 16px"><div class="section-label">구역 선택</div>';
-  Object.entries(byR).forEach(([rid, ds]) => {
-    html += '<div class="region-group"><div class="region-group-title">' + (regionsCache[rid]?.name || rid) + '</div><div class="district-btn-row">';
-    ds.forEach(d => { html += '<button class="district-pick-btn" data-did="' + d.did + '">' + d.name + '</button>'; });
-    html += '</div></div>';
-  });
-  html += '</div>';
-  el.innerHTML = html;
-  el.querySelectorAll('.district-pick-btn').forEach(btn => {
-    btn.addEventListener('click', async () => { faithDistrictId = btn.dataset.did; await loadFaithWeek(); });
-  });
-}
-
-async function loadFaithWeek() {
-  const el = document.getElementById('faith-content');
-  if (!el) return;
-  el.innerHTML = '<div class="loading">불러오는 중…</div>';
-  const did = faithDistrictId;
-  if (!did) return;
-  await loadDynLists(did);
-
-  const prevWeekId = shiftWeek(currentWeekId, -1);
-  const [ms, ws, mths, pws, detailSnap] = await Promise.all([
-    get(ref(db, 'members/' + did)),
-    get(ref(db, 'weekly/' + did + '/' + currentWeekId)),
-    get(ref(db, 'monthly/' + did + '/' + currentMonthId)),
-    get(ref(db, 'weekly/' + did + '/' + prevWeekId)),
-    get(ref(db, 'memberDetail/' + did))
-  ]);
-  const members   = ms.val() || {};
-  let   weekData  = ws.val() || {};
-  const monthData = mths.val() || {};
-  const prevData  = pws.val() || {};
-  const detailData= detailSnap.val() || {};
-
-  // 목표 자동 이월
-  const carry = {};
-  Object.keys(members).forEach(mid => {
-    const cur  = (weekData[mid] || {}).goal || {};
-    const prev = (prevData[mid]  || {}).goal || {};
-    if (!cur.prevText && prev.text) {
-      carry['weekly/' + did + '/' + currentWeekId + '/' + mid + '/goal/prevText'] = prev.text;
-      if (!weekData[mid]) weekData[mid] = {};
-      if (!weekData[mid].goal) weekData[mid].goal = {};
-      weekData[mid].goal.prevText = prev.text;
-    }
-    if (!cur.prevLeaderNote && prev.leaderNote) {
-      carry['weekly/' + did + '/' + currentWeekId + '/' + mid + '/goal/prevLeaderNote'] = prev.leaderNote;
-      if (!weekData[mid]) weekData[mid] = {};
-      if (!weekData[mid].goal) weekData[mid].goal = {};
-      weekData[mid].goal.prevLeaderNote = prev.leaderNote;
-    }
-  });
-  if (Object.keys(carry).length) await update(ref(db), carry);
-
-  const dName = districtsCache[did]?.name || '구역';
-  const rName = regionsCache[districtsCache[did]?.regionId]?.name || '';
-  const active = Object.entries(members).filter(([,m]) => m.isActive !== false).sort((a,b) => (a[1].order||0)-(b[1].order||0));
-  const isCW   = currentWeekId === getWeekId();
-  const extraCols = Object.entries(extraOfferingCache);
-  const backBtn = (isRegion() && userRole !== 'district_leader')
-    ? '<button class="icon-btn" id="btn-back-dist">← 목록</button>' : '';
-
-  let html = '<div class="faith-topbar">'
-    + backBtn
-    + '<div class="faith-title">' + (rName ? rName + ' · ' : '') + dName + '</div>'
-    + '<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">'
-    + '<button class="icon-btn" id="btn-prev-week">◀</button>'
-    + '<button class="week-badge-btn" id="btn-week-pick">' + getWeekLabel(currentWeekId) + '</button>'
-    + '<button class="icon-btn" id="btn-next-week"' + (isCW ? ' disabled' : '') + '>▶</button>'
-    + (isLeader() ? '<button class="btn btn-sm" id="btn-add-member">＋ 구역원 추가</button>' : '')
-    + '</div></div>'
-    + '<div class="table-scroll"><table class="faith-table"><thead>'
-    + '<tr class="sector-row">'
-    + '<th class="col-name" rowspan="2">이름</th>'
-    + '<th colspan="2" class="sector-head s-worship">⛪ 예배</th>'
-    + '<th colspan="1" class="sector-head s-edu">📖 교육' + (isRegion() ? ' <button class="mgmt-btn" data-mgmt="edu" data-did="' + did + '">관리</button>' : '') + '</th>'
-    + '<th colspan="1" class="sector-head s-svc">🤝 모임(봉사)' + (isRegion() ? ' <button class="mgmt-btn" data-mgmt="service" data-did="' + did + '">관리</button>' : '') + '</th>'
-    + '<th colspan="' + (3 + extraCols.length) + '" class="sector-head s-offering">💰 헌금' + (isRegion() ? ' <button class="mgmt-btn" data-mgmt="extra" data-did="' + did + '">관리</button>' : '') + '</th>'
-    + '<th colspan="3" class="sector-head s-goal">🎯 단계향상 목표</th>'
-    + '</tr><tr class="sub-head-row">'
-    + '<th class="col-worship">삼일</th>'
-    + '<th class="col-worship" style="border-right:1px solid rgba(133,183,235,.2)">주일</th>'
-    + '<th class="col-tags-head">받은 교육</th>'
-    + '<th class="col-tags-head" style="border-right:1px solid rgba(93,202,133,.2)">모임(봉사)</th>'
-    + '<th class="col-chk col-weekly">주정</th>'
-    + '<th class="col-chk col-monthly">십일</th>'
-    + '<th class="col-chk col-monthly">건축</th>'
-    + extraCols.map(([,x]) => '<th class="col-chk col-extra">' + x.name + '</th>').join('')
-    + '<th class="col-prev-goal">지난주 목표</th>'
-    + '<th class="col-result">달성</th>'
-    + '<th class="col-cur-goal">이번주 목표 / 임원 조언</th>'
-    + '</tr></thead><tbody id="faith-tbody"></tbody></table></div>'
-    + '<div class="table-hint"><span class="monthly-badge">십일·건축</span> 월간 유지 &nbsp;|&nbsp; 이름 클릭 → 상세카드</div>';
-
-  el.innerHTML = html;
-
-  // 상단 버튼 이벤트
-  const btnBack = document.getElementById('btn-back-dist');
-  const btnPrev = document.getElementById('btn-prev-week');
-  const btnNext = document.getElementById('btn-next-week');
-  const btnPick = document.getElementById('btn-week-pick');
-  const btnAdd  = document.getElementById('btn-add-member');
-  if (btnBack) btnBack.addEventListener('click', () => goDistrictList());
-  if (btnPrev) btnPrev.addEventListener('click', () => prevWeek());
-  if (btnNext) btnNext.addEventListener('click', () => nextWeek());
-  if (btnPick) btnPick.addEventListener('click', e => openWeekPicker(e));
-  if (btnAdd)  btnAdd.addEventListener('click',  () => openMemberModal(did));
-
-  // 관리 버튼
-  el.querySelectorAll('.mgmt-btn').forEach(btn => {
-    btn.addEventListener('click', e => { e.stopPropagation(); openListMgmt(btn.dataset.mgmt, btn.dataset.did); });
-  });
-
-  // tbody 구성
-  const tbody = document.getElementById('faith-tbody');
-  if (!active.length) {
-    tbody.innerHTML = '<tr><td colspan="20" class="empty-td">구역원이 없습니다<br><button class="btn-xs" id="btn-add-empty">＋ 구역원 추가</button></td></tr>';
-    const btnE = document.getElementById('btn-add-empty');
-    if (btnE) btnE.addEventListener('click', () => openMemberModal(did));
-    return;
-  }
-
-  active.forEach(([mid, member]) => {
-    const w    = weekData[mid] || {};
-    const m    = monthData[mid] || {};
-    const wor  = w.worship || {};
-    const mOff = m.offering || {};
-    const goal = w.goal || {};
-    const eduDone = w.education || {};
-    const svcDone = w.service || {};
-    const goalText   = goal.text || '';
-    const leaderText = goal.leaderNote || '';
-
-    // 심령 배지
-    const sk = detailData[mid]?.spiritLevel || '';
-    const sp = sk ? SPIRIT_LEVELS.find(s => s.key === sk) : null;
-    const spBadge = sp
-      ? '<span style="display:block;background:' + sp.bg + ';color:' + sp.color + ';border:0.5px solid ' + sp.border + ';border-radius:3px;padding:1px 5px;font-size:.58rem;margin-top:1px;white-space:nowrap">' + sp.label + '</span>'
-      : '';
-
-    // 예배 표시
-    function wCell(data, wType) {
-      if (!data || !data.type) return '<span class="w-none">—</span>';
-      const map = { present:{ c:'var(--success)', s:'●' }, zoom:{ c:'var(--accent)', s:'Z' }, excuse:{ c:'var(--monthly)', s:'사' } };
-      const cfg = map[data.type] || { c:'var(--muted)', s:'?' };
-      const sub = data.time || data.excuseType || '';
-      const memo = data.type === 'excuse'
-        ? '<span class="memo-icon' + (data.excuseNote ? ' memo-has' : '') + '" data-did="' + did + '" data-mid="' + mid + '" data-wtype="' + wType + '">📝</span>'
-        : '';
-      return '<span style="color:' + cfg.c + ';font-size:.72rem;white-space:nowrap">' + cfg.s + '<br><span style="font-size:.65rem;opacity:.8">' + sub + '</span></span>' + memo;
-    }
-
-    // 배지
-    const eduBadges = Object.keys(eduDone).filter(id => eduDone[id])
-      .map(id => '<span class="item-badge" data-did="' + did + '" data-mid="' + mid + '" data-id="' + id + '" data-dtype="edu">' + (eduListCache[id]?.name || '?') + '</span>').join('');
-    const svcBadges = Object.keys(svcDone).filter(id => svcDone[id])
-      .map(id => '<span class="item-badge svc-badge" data-did="' + did + '" data-mid="' + mid + '" data-id="' + id + '" data-dtype="service">' + (serviceListCache[id]?.name || '?') + '</span>').join('');
-
-    // 달성 버튼
-    const rBtns = ['○','△','✕'].map(r => {
-      const on = goal.prevResult === r;
-      return '<button class="result-btn' + (on ? ' result-on r-' + r : '') + '" data-did="' + did + '" data-mid="' + mid + '" data-r="' + r + '">' + r + '</button>';
-    }).join('');
-
-    const tr = document.createElement('tr');
-    tr.className = 'faith-row';
-    tr.innerHTML =
-      '<td class="col-name-td">'
-        + '<span class="member-name-cell" data-did="' + did + '" data-mid="' + mid + '" data-name="' + member.name + '">' + member.name + '</span>'
-        + spBadge
-      + '</td>'
-      + '<td class="col-worship-td" data-did="' + did + '" data-mid="' + mid + '" data-wtype="samil">' + wCell(wor.samil,'samil') + '</td>'
-      + '<td class="col-worship-td sep-right" data-did="' + did + '" data-mid="' + mid + '" data-wtype="juil">' + wCell(wor.juil,'juil') + '</td>'
-      + '<td class="col-tags-td" data-did="' + did + '" data-mid="' + mid + '" data-dtype="edu">' + eduBadges + (canEdit() ? '<span class="badge-add">+</span>' : '') + '</td>'
-      + '<td class="col-tags-td sep-right" data-did="' + did + '" data-mid="' + mid + '" data-dtype="service">' + svcBadges + (canEdit() ? '<span class="badge-add">+</span>' : '') + '</td>'
-      + '<td class="col-chk-td' + (w.offering?.weekly ? ' checked' : '') + '" data-did="' + did + '" data-mid="' + mid + '" data-action="wkly">' + (w.offering?.weekly ? '✓' : '') + '</td>'
-      + '<td class="col-chk-td col-monthly-td' + (mOff.tithe ? ' checked' : '') + '" data-did="' + did + '" data-mid="' + mid + '" data-action="tithe">' + (mOff.tithe ? '✓' : '') + '</td>'
-      + '<td class="col-chk-td col-monthly-td sep-right' + (mOff.construction ? ' checked' : '') + '" data-did="' + did + '" data-mid="' + mid + '" data-action="construction">' + (mOff.construction ? '✓' : '') + '</td>'
-      + extraCols.map(([id]) => '<td class="col-chk-td col-extra-td' + (mOff.extras?.[id] ? ' checked' : '') + '" data-did="' + did + '" data-mid="' + mid + '" data-action="extra" data-eid="' + id + '">' + (mOff.extras?.[id] ? '✓' : '') + '</td>').join('')
-      + '<td class="col-prev-goal-td">'
-        + (goal.prevText ? '<div style="font-size:.72rem;color:var(--muted)">' + goal.prevText + '</div>' : '')
-        + (goal.prevLeaderNote ? '<div style="font-size:.67rem;color:#a78bfa;margin-top:2px">💬 ' + goal.prevLeaderNote + '</div>' : '')
-      + '</td>'
-      + '<td class="col-result-td">' + rBtns + '</td>'
-      + '<td class="col-cur-goal-td">'
-        + '<input class="goal-input" type="text" value="' + goalText + '" placeholder="이번주 목표…"' + (canEdit() ? '' : ' readonly') + ' data-did="' + did + '" data-mid="' + mid + '" data-gtype="goal">'
-        + '<input class="goal-input leader-note-input" type="text" value="' + leaderText + '" placeholder="💬 임원 조언…"' + (isRegion() ? '' : ' readonly') + ' data-did="' + did + '" data-mid="' + mid + '" data-gtype="leader">'
-      + '</td>';
-    tbody.appendChild(tr);
-  });
-
-  // 이벤트 위임
-  tbody.addEventListener('click', onTableClick);
-  tbody.addEventListener('dblclick', onTableDblClick);
-  tbody.querySelectorAll('.goal-input').forEach(inp => {
-    inp.addEventListener('blur', async e => {
-      const { did, mid, gtype } = e.target.dataset;
-      if (gtype === 'goal') await set(ref(db, 'weekly/' + did + '/' + currentWeekId + '/' + mid + '/goal/text'), e.target.value.trim());
-      else if (gtype === 'leader') await set(ref(db, 'weekly/' + did + '/' + currentWeekId + '/' + mid + '/goal/leaderNote'), e.target.value.trim());
-    });
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
-  });
-}
-window.loadFaithWeek = loadFaithWeek;
-
-// ── 테이블 이벤트 위임 ──
-function onTableClick(e) {
-  const t = e.target;
-  // 이름 클릭
-  const nameCell = t.closest('.member-name-cell');
-  if (nameCell) { openProfile(nameCell.dataset.did, nameCell.dataset.mid, nameCell.dataset.name); return; }
-  // 메모 아이콘
-  if (t.classList.contains('memo-icon')) { e.stopPropagation(); openMemoPop(t, t.dataset.did, t.dataset.mid, t.dataset.wtype); return; }
-  if (!canEdit()) return;
-  // 예배 셀
-  const wTd = t.closest('.col-worship-td');
-  if (wTd) { openWorshipPop(wTd, wTd.dataset.did, wTd.dataset.mid, wTd.dataset.wtype); return; }
-  // 교육/봉사 셀
-  const dynTd = t.closest('.col-tags-td');
-  if (dynTd && !t.classList.contains('item-badge')) { openDynPop(dynTd, dynTd.dataset.did, dynTd.dataset.mid, dynTd.dataset.dtype); return; }
-  // 헌금 체크
-  const chkTd = t.closest('.col-chk-td');
-  if (chkTd) {
-    const { did, mid, action, eid } = chkTd.dataset;
-    if (action === 'wkly') toggleWkly(did, mid);
-    else if (action === 'tithe') toggleMonthly(did, mid, 'tithe');
-    else if (action === 'construction') toggleMonthly(did, mid, 'construction');
-    else if (action === 'extra') toggleExtra(did, mid, eid);
-    return;
-  }
-  // 달성 버튼
-  const rBtn = t.closest('.result-btn');
-  if (rBtn) { toggleResult(rBtn.dataset.did, rBtn.dataset.mid, rBtn.dataset.r); return; }
-}
-function onTableDblClick(e) {
-  if (!canEdit()) return;
-  const badge = e.target.closest('.item-badge');
-  if (badge) { e.stopPropagation(); removeDyn(badge.dataset.did, badge.dataset.mid, badge.dataset.id, badge.dataset.dtype); }
-}
-
-// ── 예배 팝오버 ──
-const SAMIL_TIMES = ['12시','19시','20시','당일방문'];
-const JUIL_TIMES  = ['12시','15시','19:30','당일방문'];
-const ZOOM_EXTRA  = '그외';
-const EXCUSE      = ['대체예배','온라인예배'];
-
-async function openWorshipPop(refEl, did, mid, wType) {
-  const snap = await get(ref(db, 'weekly/' + did + '/' + currentWeekId + '/' + mid + '/worship/' + wType));
-  const cur = snap.val() || {};
-  const times = wType === 'samil' ? SAMIL_TIMES : JUIL_TIMES;
-  const label = wType === 'samil' ? '삼일예배' : '주일예배';
-  const pop = document.createElement('div');
-  pop.className = 'worship-pop';
-
-  function isOn(type, val) { return cur.type === type && (cur.time === val || cur.excuseType === val) ? ' pop-on' : ''; }
-
-  let html = '<div class="pop-title">' + label + '</div>'
-    + '<div class="pop-sec"><div class="pop-sec-label">당일출석</div><div class="pop-row">'
-    + times.map(t => '<button class="pop-btn' + isOn('present',t) + '" data-t="present" data-time="' + t + '">' + t + '</button>').join('')
-    + '</div></div>'
-    + '<div class="pop-sec"><div class="pop-sec-label">줌</div><div class="pop-row">'
-    + [...times.filter(t => t !== '당일방문'), ZOOM_EXTRA].map(t => '<button class="pop-btn' + isOn('zoom',t) + '" data-t="zoom" data-time="' + t + '">' + t + '</button>').join('')
-    + '</div></div>'
-    + '<div class="pop-sec"><div class="pop-sec-label">사유출석</div><div class="pop-row">'
-    + EXCUSE.map(t => '<button class="pop-btn' + isOn('excuse',t) + '" data-t="excuse" data-excuse="' + t + '">' + t + '</button>').join('')
-    + '</div></div>'
-    + '<button class="pop-clear" id="pop-clear-btn">✕ 미출석</button>';
-  pop.innerHTML = html;
-
-  pop.querySelectorAll('[data-t]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const type = btn.dataset.t;
-      const time = btn.dataset.time || null;
-      const exc  = btn.dataset.excuse || null;
-      await set(ref(db, 'weekly/' + did + '/' + currentWeekId + '/' + mid + '/worship/' + wType), { type, time, excuseType: exc });
-      closePop(); loadFaithWeek();
-    });
-  });
-  pop.querySelector('#pop-clear-btn').addEventListener('click', async () => {
-    await set(ref(db, 'weekly/' + did + '/' + currentWeekId + '/' + mid + '/worship/' + wType), null);
-    closePop(); loadFaithWeek();
-  });
-  openPop(pop, refEl, 200, 260);
-}
-
-// ── 메모 팝오버 ──
-async function openMemoPop(refEl, did, mid, wType) {
-  const snap = await get(ref(db, 'weekly/' + did + '/' + currentWeekId + '/' + mid + '/worship/' + wType + '/excuseNote'));
-  const cur = snap.val() || '';
-  const pop = document.createElement('div');
-  pop.className = 'worship-pop';
-  pop.innerHTML = '<div class="pop-title">📝 사유출석 메모</div>'
-    + '<textarea id="memo-ta" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-family:inherit;font-size:.8rem;resize:vertical;min-height:60px;outline:none">' + cur + '</textarea>'
-    + '<div style="display:flex;gap:6px;margin-top:8px">'
-    + '<button class="pop-btn pop-on" id="memo-save" style="flex:1">저장</button>'
-    + '<button class="pop-clear" id="memo-close" style="flex:none;width:auto;padding:4px 10px">닫기</button></div>';
-  pop.querySelector('#memo-save').addEventListener('click', async () => {
-    const val = pop.querySelector('#memo-ta').value.trim();
-    await set(ref(db, 'weekly/' + did + '/' + currentWeekId + '/' + mid + '/worship/' + wType + '/excuseNote'), val || null);
-    closePop(); loadFaithWeek(); showToast('✅ 메모 저장됐어요');
-  });
-  pop.querySelector('#memo-close').addEventListener('click', closePop);
-  openPop(pop, refEl, 220, 160);
-  pop.querySelector('#memo-ta').focus();
-}
-
-// ── 교육/봉사 팝오버 ──
-async function openDynPop(refEl, did, mid, listType) {
-  const isEdu = listType === 'edu';
-  const list  = isEdu ? eduListCache : serviceListCache;
-  const items = Object.entries(list);
-  if (!items.length) { showToast((isEdu ? '교육' : '봉사') + ' 목록을 먼저 추가해주세요'); return; }
-  const key   = isEdu ? 'education' : 'service';
-  const snap  = await get(ref(db, 'weekly/' + did + '/' + currentWeekId + '/' + mid + '/' + key));
-  const done  = snap.val() || {};
-  const pop   = document.createElement('div');
-  pop.className = 'worship-pop';
-  let html = '<div class="pop-title">' + (isEdu ? '📖 교육' : '🤝 봉사') + ' 선택 <span style="font-size:.65rem;color:var(--muted)">(배지 더블클릭 제거)</span></div><div class="pop-row">';
-  items.forEach(([id, v]) => {
-    html += '<button class="pop-btn' + (done[id] ? ' pop-on' : '') + '" data-id="' + id + '">' + (done[id] ? '✓ ' : '') + v.name + '</button>';
-  });
-  html += '</div>';
-  pop.innerHTML = html;
-  pop.querySelectorAll('[data-id]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const path = 'weekly/' + did + '/' + currentWeekId + '/' + mid + '/' + key + '/' + btn.dataset.id;
-      const s = await get(ref(db, path));
-      const nv = s.val() ? null : true;
-      await set(ref(db, path), nv);
-      btn.className = 'pop-btn' + (nv ? ' pop-on' : '');
-      btn.textContent = (nv ? '✓ ' : '') + list[btn.dataset.id]?.name;
-      loadFaithWeek();
-    });
-  });
-  openPop(pop, refEl, 210, 180);
-}
-
-async function removeDyn(did, mid, itemId, listType) {
-  const key = listType === 'edu' ? 'education' : 'service';
-  await set(ref(db, 'weekly/' + did + '/' + currentWeekId + '/' + mid + '/' + key + '/' + itemId), null);
-  loadFaithWeek();
-}
-
-// ── 헌금 / 달성 ──
-async function toggleWkly(did, mid)       { const p = 'weekly/' + did + '/' + currentWeekId + '/' + mid + '/offering/weekly'; const s = await get(ref(db,p)); await set(ref(db,p), !s.val()); loadFaithWeek(); }
-async function toggleMonthly(did, mid, f) { const p = 'monthly/' + did + '/' + currentMonthId + '/' + mid + '/offering/' + f; const s = await get(ref(db,p)); await set(ref(db,p), !s.val()); loadFaithWeek(); }
-async function toggleExtra(did, mid, id)  { const p = 'monthly/' + did + '/' + currentMonthId + '/' + mid + '/offering/extras/' + id; const s = await get(ref(db,p)); await set(ref(db,p), s.val()?null:true); loadFaithWeek(); }
-async function toggleResult(did, mid, r)  { const p = 'weekly/' + did + '/' + currentWeekId + '/' + mid + '/goal/prevResult'; const s = await get(ref(db,p)); await set(ref(db,p), s.val()===r?null:r); loadFaithWeek(); }
-
-// ── 목록 관리 ──
-let mgmtDid = '', mgmtType = '';
-async function openListMgmt(type, did) {
-  if (!isRegion()) { showToast('권한이 없습니다'); return; }
-  mgmtDid = did; mgmtType = type;
-  const labels = { edu:'📖 교육', service:'🤝 봉사', extra:'💰 기타헌금' };
-  document.getElementById('list-mgmt-title').textContent = labels[type] + ' 목록 관리';
-  await refreshMgmtList();
-  document.getElementById('inp-mgmt-name').value = '';
-  document.getElementById('modal-listmgmt').classList.add('show');
-}
-window.openListMgmt = openListMgmt;
-window.closeListMgmt = () => document.getElementById('modal-listmgmt').classList.remove('show');
-async function refreshMgmtList() {
-  const paths = { edu:'eduList/'+mgmtDid, service:'serviceList/'+mgmtDid, extra:'extraOfferings/'+mgmtDid };
-  const snap = await get(ref(db, paths[mgmtType]));
-  const items = snap.val() || {};
-  const el = document.getElementById('mgmt-list-inner');
-  if (!Object.keys(items).length) { el.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:.8rem">항목이 없습니다</div>'; return; }
-  el.innerHTML = Object.entries(items).map(([id,v]) =>
-    '<div class="user-row"><div class="user-info"><div class="user-name">' + v.name + '</div></div>'
-    + '<button class="btn-danger-xs" data-del="' + id + '">삭제</button></div>'
-  ).join('');
-  el.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
-    if (!confirm('삭제할까요?')) return;
-    const paths2 = { edu:'eduList/'+mgmtDid, service:'serviceList/'+mgmtDid, extra:'extraOfferings/'+mgmtDid };
-    await remove(ref(db, paths2[mgmtType] + '/' + btn.dataset.del));
-    await refreshMgmtList(); await loadDynLists(mgmtDid);
-    if (faithDistrictId === mgmtDid) loadFaithWeek();
-  }));
-}
-window.addMgmtItem = async () => {
-  const name = document.getElementById('inp-mgmt-name').value.trim(); if (!name) return;
-  const paths = { edu:'eduList/'+mgmtDid, service:'serviceList/'+mgmtDid, extra:'extraOfferings/'+mgmtDid };
-  await set(push(ref(db, paths[mgmtType])), { name });
-  document.getElementById('inp-mgmt-name').value = '';
-  showToast('✅ 추가됐어요'); await refreshMgmtList(); await loadDynLists(mgmtDid);
-  if (faithDistrictId === mgmtDid) loadFaithWeek();
-};
-
-// ══════════════════════════════
-// 인수인계서
-// ══════════════════════════════
-const PF_FIELDS = ['birth','baptismDate','phone','address','workplace','contactMethod','contactNote',
-  'relationship','mbti','enneagram','personality','worshipPattern','worshipLevel','worshipLevelNote',
-  'offeringNote','faithLevel','faithLevelNote','faithNote','eduLevel','eduNote','evangelismNote',
-  'familyNote','workSchedule','economicNote','visitTime','caution','prayer','notes',
-  'prevLeader','prevLeaderContact','spiritLevel','faithType','faithTypeNote'];
-
-let profileDid = '', profileMid = '';
-async function openProfile(did, mid, name) {
-  profileDid = did; profileMid = mid;
-  document.getElementById('profile-name').textContent = name;
-  const [detailSnap, memberSnap] = await Promise.all([
-    get(ref(db, 'memberDetail/' + did + '/' + mid)),
-    get(ref(db, 'members/' + did + '/' + mid))
-  ]);
-  const d = detailSnap.val() || {};
-  if (!d.phone && memberSnap.exists()) d.phone = memberSnap.val()?.phone || '';
-  PF_FIELDS.forEach(f => { const el = document.getElementById('pf-' + f); if (el) el.value = d[f] || ''; });
-  ['worshipLevel','faithLevel','eduLevel'].forEach(f => {
-    document.querySelectorAll('.level-btn[data-field="' + f + '"]').forEach(b => b.classList.toggle('level-on', b.dataset.val === (d[f]||'')));
-  });
-  document.querySelectorAll('.level-btn[data-field="faithType"]').forEach(b => b.classList.toggle('level-on', b.dataset.val === (d.faithType||'')));
-  const fnWrap = document.getElementById('faith-type-note-wrap');
-  if (fnWrap) fnWrap.style.display = d.faithType === '부분가족신앙' ? 'block' : 'none';
-  // 심령 단계
-  const sk = d.spiritLevel || '';
-  document.querySelectorAll('.spirit-btn').forEach(b => b.classList.toggle('spirit-on', b.dataset.key === sk));
-  const sp = SPIRIT_LEVELS.find(s => s.key === sk);
-  const disp = document.getElementById('spirit-display');
-  if (disp) {
-    if (sp) { disp.textContent = sp.label; disp.style.cssText = 'background:' + sp.bg + ';color:' + sp.color + ';border-color:' + sp.border + ';display:block;border-radius:6px;padding:6px 14px;font-size:.82rem;font-weight:600;border:.5px solid;margin-top:8px;text-align:center'; }
-    else disp.style.display = 'none';
-  }
-  document.querySelectorAll('.pf-editable').forEach(el => { if (el.tagName==='INPUT'||el.tagName==='TEXTAREA') el.readOnly = !canEdit(); });
-  document.getElementById('btn-save-profile').style.display = canEdit() ? '' : 'none';
-  showScreen('profile');
-}
-window.openProfile = openProfile;
-window.closeProfile = () => showScreen('main');
-window.setLevel = (field, val) => {
-  if (!canEdit()) return;
-  document.querySelectorAll('.level-btn[data-field="' + field + '"]').forEach(b => b.classList.toggle('level-on', b.dataset.val === val));
-  const el = document.getElementById('pf-' + field); if (el) el.value = val;
-};
-window.setFaithType = (val) => {
-  if (!canEdit()) return;
-  document.querySelectorAll('.level-btn[data-field="faithType"]').forEach(b => b.classList.toggle('level-on', b.dataset.val === val));
-  const el = document.getElementById('pf-faithType'); if (el) el.value = val;
-  const wrap = document.getElementById('faith-type-note-wrap'); if (wrap) wrap.style.display = val === '부분가족신앙' ? 'block' : 'none';
-};
-window.setSpiritLevel = (key) => {
-  if (!canEdit()) return;
-  document.querySelectorAll('.spirit-btn').forEach(b => b.classList.toggle('spirit-on', b.dataset.key === key));
-  const el = document.getElementById('pf-spiritLevel'); if (el) el.value = key;
-  const sp = SPIRIT_LEVELS.find(s => s.key === key);
-  const disp = document.getElementById('spirit-display');
-  if (disp && sp) { disp.textContent = sp.label; disp.style.cssText = 'background:' + sp.bg + ';color:' + sp.color + ';border-color:' + sp.border + ';display:block;border-radius:6px;padding:6px 14px;font-size:.82rem;font-weight:600;border:.5px solid;margin-top:8px;text-align:center'; }
-};
-window.saveProfile = async () => {
-  const data = {};
-  PF_FIELDS.forEach(f => { const el = document.getElementById('pf-' + f); if (el) data[f] = el.value.trim(); });
-  await set(ref(db, 'memberDetail/' + profileDid + '/' + profileMid), data);
-  showToast('✅ 저장됐어요');
-};
-
-// ══════════════════════════════
-// 구역원 관리
-// ══════════════════════════════
-window.openMemberModal = async (did) => {
-  if (!did) { showToast('구역을 먼저 선택해주세요'); return; }
-  const snap = await get(ref(db, 'members/' + did));
-  const members = snap.val() || {};
-  const list = Object.entries(members).sort((a,b) => (a[1].order||0)-(b[1].order||0));
-  const el = document.getElementById('member-list');
-  el.innerHTML = list.length
-    ? list.map(([mid,m]) =>
-        '<div class="user-row' + (m.isActive===false?' row-inactive':'') + '">'
-        + '<div class="user-info"><div class="user-name">' + m.name + '</div><div class="user-sub">' + (m.phone||'연락처 없음') + '</div></div>'
-        + '<div style="display:flex;gap:5px">'
-        + '<button class="btn-xs" data-act="toggle" data-did="' + did + '" data-mid="' + mid + '" data-cur="' + (m.isActive!==false) + '">' + (m.isActive!==false?'비활성':'활성') + '</button>'
-        + '<button class="btn-danger-xs" data-act="del" data-did="' + did + '" data-mid="' + mid + '">삭제</button>'
-        + '</div></div>'
-      ).join('')
-    : '<div style="padding:16px;text-align:center;color:var(--muted);font-size:.83rem">구역원이 없습니다</div>';
-  el.querySelectorAll('[data-act]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (btn.dataset.act === 'toggle') toggleActive(btn.dataset.did, btn.dataset.mid, btn.dataset.cur === 'true');
-      if (btn.dataset.act === 'del') deleteMember(btn.dataset.did, btn.dataset.mid);
-    });
-  });
-  document.getElementById('inp-member-name').value = '';
-  document.getElementById('inp-member-phone').value = '';
-  document.getElementById('modal-member').dataset.did = did;
-  document.getElementById('modal-member').classList.add('show');
-};
-window.closeMemberModal = () => document.getElementById('modal-member').classList.remove('show');
-window.addMember = async () => {
-  const did  = document.getElementById('modal-member').dataset.did;
-  const name = document.getElementById('inp-member-name').value.trim();
-  const phone= document.getElementById('inp-member-phone').value.trim();
-  if (!name) { alert('이름을 입력해주세요'); return; }
-  const snap = await get(ref(db, 'members/' + did));
-  await set(push(ref(db, 'members/' + did)), { name, phone, isActive:true, order:Object.keys(snap.val()||{}).length, joinedAt:Date.now() });
-  showToast('✅ 추가됐어요'); window.openMemberModal(did);
-};
-async function toggleActive(did,mid,cur) { await update(ref(db,'members/'+did+'/'+mid),{isActive:!cur}); window.openMemberModal(did); }
-async function deleteMember(did,mid) { if(!confirm('삭제할까요?'))return; await remove(ref(db,'members/'+did+'/'+mid)); showToast('삭제됐어요'); window.openMemberModal(did); }
-
-// ══════════════════════════════
-// 설정 관련
-// ══════════════════════════════
-window.openUserMgmt = async () => { await loadUserList(); document.getElementById('modal-users').classList.add('show'); };
-window.closeUserMgmt = () => document.getElementById('modal-users').classList.remove('show');
-async function loadUserList() {
-  const [uSnap, rSnap] = await Promise.all([get(ref(db,'users')), get(ref(db,'requests'))]);
-  const users = uSnap.val()||{}, reqs = rSnap.val()||{};
-  const visR = Object.entries(reqs).filter(([,u]) => isChairman() || (userRole==='region_admin' && u.regionId===userRegionId));
-  const visU = Object.entries(users).filter(([,u]) => isChairman() || (userRole==='region_admin' && u.regionId===userRegionId));
-  let html = '';
-  if (visR.length) {
-    html += '<div class="section-label danger-label">⏳ 승인 대기 (' + visR.length + ')</div>';
-    html += visR.map(([uid,u]) =>
-      '<div class="user-row"><div class="user-info"><div class="user-name">' + (u.name||uid) + '</div><div class="user-sub">' + (u.email||'') + '</div></div>'
-      + '<div class="user-actions">'
-      + (isChairman() ? '<select id="req-role-' + uid + '" class="small-select"><option value="district_leader">구역장</option><option value="region_admin">임원</option></select>' : '')
-      + '<button class="btn-xs" data-approve="' + uid + '">수락</button>'
-      + '<button class="btn-danger-xs" data-reject="' + uid + '">거절</button>'
-      + '</div></div>'
-    ).join('');
-  }
-  html += '<div class="section-label" style="margin-top:12px">👥 멤버</div>';
-  html += visU.map(([uid,u]) =>
-    '<div class="user-row"><div class="user-info"><div class="user-name">' + (u.nickname||u.name||uid) + '</div><div class="user-sub">' + (districtsCache[u.districtId]?.name||'미배정') + '</div></div>'
-    + (isChairman()
-      ? '<div class="user-actions"><select class="small-select" data-role-uid="' + uid + '"><option value="district_leader"' + (u.role==='district_leader'?' selected':'') + '>구역장</option><option value="region_admin"' + (u.role==='region_admin'?' selected':'') + '>임원</option><option value="chairman"' + (u.role==='chairman'?' selected':'') + '>회장</option><option value="superadmin"' + (u.role==='superadmin'?' selected':'') + '>관리자</option></select><button class="btn-danger-xs" data-del-user="' + uid + '">삭제</button></div>'
-      : '<span class="role-badge">' + (ROLE_LABEL[u.role]||u.role) + '</span>')
-    + '</div>'
-  ).join('') || '<div style="padding:12px;color:var(--muted);font-size:.83rem">없음</div>';
-  const el = document.getElementById('user-list'); el.innerHTML = html;
-  el.querySelectorAll('[data-approve]').forEach(b => b.addEventListener('click', () => approveUser(b.dataset.approve)));
-  el.querySelectorAll('[data-reject]').forEach(b => b.addEventListener('click', () => rejectUser(b.dataset.reject)));
-  el.querySelectorAll('[data-role-uid]').forEach(sel => sel.addEventListener('change', () => update(ref(db,'users/'+sel.dataset.roleUid), {role:sel.value}).then(() => showToast('권한 변경됐어요'))));
-  el.querySelectorAll('[data-del-user]').forEach(b => b.addEventListener('click', async () => { if(!confirm('삭제할까요?'))return; await remove(ref(db,'users/'+b.dataset.delUser)); loadUserList(); }));
-}
-async function approveUser(uid) {
-  const roleEl = document.getElementById('req-role-'+uid);
-  const role   = roleEl ? roleEl.value : 'district_leader';
-  const snap   = await get(ref(db,'requests/'+uid)); if (!snap.exists()) { await loadUserList(); return; }
-  const u = snap.val();
-  await set(ref(db,'users/'+uid), { email:u.email||'', name:u.name||'', nickname:u.name||'', role, regionId:u.regionId||null, createdAt:Date.now() });
-  await remove(ref(db,'requests/'+uid)); showToast('✅ 승인됐어요'); await loadUserList();
-}
-async function rejectUser(uid) { if(!confirm('거절할까요?'))return; await remove(ref(db,'requests/'+uid)); loadUserList(); }
-
-window.openAssignModal  = async () => { await loadAssignList(); document.getElementById('modal-assign').classList.add('show'); };
-window.closeAssignModal = () => document.getElementById('modal-assign').classList.remove('show');
-async function loadAssignList() {
-  const [rs,ds,us] = await Promise.all([get(ref(db,'regions')),get(ref(db,'districts')),get(ref(db,'users'))]);
-  regionsCache = rs.val()||{}; districtsCache = ds.val()||{};
-  const users = us.val()||{};
-  const myDists = Object.entries(districtsCache).filter(([,d]) => isChairman()||d.regionId===userRegionId);
-  const distOpts = myDists.map(([did,d]) => '<option value="' + did + '">' + d.name + '</option>').join('');
-  const targets = Object.entries(users).filter(([,u]) => u.role==='district_leader'&&(isChairman()||u.regionId===userRegionId));
-  const el = document.getElementById('assign-list');
-  el.innerHTML = targets.map(([uid,u]) =>
-    '<div class="user-row"><div class="user-info"><div class="user-name">' + (u.nickname||u.name) + '</div><div class="user-sub">현재: ' + (districtsCache[u.districtId]?.name||'미배정') + '</div></div>'
-    + '<select class="small-select" data-auid="' + uid + '"><option value="">미배정</option>' + distOpts + '</select></div>'
-  ).join('') || '<div style="padding:12px;color:var(--muted);font-size:.83rem">없음</div>';
-  el.querySelectorAll('[data-auid]').forEach(sel => sel.addEventListener('change', async () => { await update(ref(db,'users/'+sel.dataset.auid),{districtId:sel.value||null}); showToast('✅ 배정됐어요'); }));
-}
-
-window.openDistrictMgmt  = async () => { await loadDistrictMgmt(); document.getElementById('modal-districts').classList.add('show'); };
-window.closeDistrictMgmt = () => document.getElementById('modal-districts').classList.remove('show');
-async function loadDistrictMgmt() {
-  const [rs,ds] = await Promise.all([get(ref(db,'regions')),get(ref(db,'districts'))]);
-  regionsCache = rs.val()||{}; districtsCache = ds.val()||{};
-  document.getElementById('sel-new-dist-region').innerHTML = Object.entries(regionsCache).map(([rid,r]) => '<option value="' + rid + '">' + r.name + '</option>').join('') || '<option value="">지역을 먼저 추가하세요</option>';
-  const rl = document.getElementById('region-list');
-  rl.innerHTML = Object.entries(regionsCache).map(([rid,r]) =>
-    '<div class="user-row"><div class="user-info"><div class="user-name">' + r.name + '</div></div><button class="btn-danger-xs" data-del-region="' + rid + '">삭제</button></div>'
-  ).join('') || '<div style="padding:8px;color:var(--muted);font-size:.8rem">없음</div>';
-  rl.querySelectorAll('[data-del-region]').forEach(b => b.addEventListener('click', async () => { if(!confirm('삭제할까요?'))return; await remove(ref(db,'regions/'+b.dataset.delRegion)); loadDistrictMgmt(); }));
-  const dl = document.getElementById('district-list');
-  dl.innerHTML = Object.entries(districtsCache).map(([did,d]) =>
-    '<div class="user-row"><div class="user-info"><div class="user-name">' + d.name + '</div><div class="user-sub">' + (regionsCache[d.regionId]?.name||'?') + '</div></div><button class="btn-danger-xs" data-del-dist="' + did + '">삭제</button></div>'
-  ).join('') || '<div style="padding:8px;color:var(--muted);font-size:.8rem">없음</div>';
-  dl.querySelectorAll('[data-del-dist]').forEach(b => b.addEventListener('click', async () => { if(!confirm('삭제할까요?'))return; await remove(ref(db,'districts/'+b.dataset.delDist)); loadDistrictMgmt(); }));
-}
-window.addRegion   = async () => { const n=document.getElementById('inp-region-name').value.trim(); if(!n)return; await set(push(ref(db,'regions')),{name:n}); document.getElementById('inp-region-name').value=''; showToast('✅'); loadDistrictMgmt(); };
-window.addDistrict = async () => { const n=document.getElementById('inp-dist-name').value.trim(); const rid=document.getElementById('sel-new-dist-region').value; if(!n||!rid){alert('이름과 지역을 선택해주세요');return;} await set(push(ref(db,'districts')),{name:n,regionId:rid}); document.getElementById('inp-dist-name').value=''; showToast('✅'); loadDistrictMgmt(); };
-
-window.openNickModal  = () => { document.getElementById('inp-nickname').value=userNickname; document.getElementById('modal-nickname').classList.add('show'); };
-window.closeNickModal = () => document.getElementById('modal-nickname').classList.remove('show');
-window.saveNickname   = async () => { const nn=document.getElementById('inp-nickname').value.trim(); if(!nn)return; await update(ref(db,'users/'+currentUser.uid),{nickname:nn}); userNickname=nn; document.querySelectorAll('.uname').forEach(el=>el.textContent=nn); closeNickModal(); showToast('✅ 닉네임 변경됐어요'); };
-
-// 설정 탭 구역원 관리 버튼
-document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('btn-member-settings');
-  if (btn) btn.addEventListener('click', () => window.openMemberModal(userDistrictId||faithDistrictId||''));
-});
-document.addEventListener('click', e => {
-  ['modal-member','modal-users','modal-districts','modal-assign','modal-nickname','modal-listmgmt'].forEach(id => {
-    if (e.target === document.getElementById(id)) document.getElementById(id).classList.remove('show');
-  });
-});
-</script>
-<style>
-:root{--bg:#0f1117;--surface:#1a1d27;--surface2:#222536;--border:#2e3147;--accent:#6c8fff;--accent2:#a78bfa;--text:#e8eaf6;--muted:#7b82a8;--danger:#f87171;--success:#4ade80;--monthly:#f6a935;--r:12px}
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
-.screen{display:none;flex-direction:column;min-height:100vh}
-#screen-main{height:100vh;max-height:100vh;overflow:hidden}
-.hdr{background:linear-gradient(135deg,#1a1d27,#0f1117);border-bottom:1px solid var(--border);padding:11px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
-.logo{width:30px;height:30px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
-.hdr h1{font-size:.92rem;font-weight:600}
-.hdr-right{margin-left:auto}
-.uname{font-size:.75rem;color:var(--muted);cursor:pointer}.uname:hover{color:var(--accent)}
-.btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 14px;border-radius:8px;border:none;font-family:inherit;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .2s}
-.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
-.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
-.btn-sm{padding:5px 10px;font-size:.75rem;border-radius:6px;background:rgba(108,143,255,.15);color:var(--accent);border:none;cursor:pointer}
-.btn-xs{background:rgba(108,143,255,.15);color:var(--accent);border:none;border-radius:5px;padding:3px 8px;font-size:.72rem;cursor:pointer}
-.btn-danger-xs{background:rgba(248,113,113,.15);color:var(--danger);border:none;border-radius:5px;padding:3px 8px;font-size:.72rem;cursor:pointer}
-.icon-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 8px;font-size:.8rem;cursor:pointer}.icon-btn:hover{border-color:var(--accent);color:var(--accent)}.icon-btn:disabled{opacity:.3;cursor:default}
-.mgmt-btn{background:rgba(108,143,255,.15);color:var(--accent);border:none;border-radius:4px;padding:1px 7px;font-size:.65rem;cursor:pointer;margin-left:4px;vertical-align:middle}
-#screen-login{align-items:center;justify-content:center}
-.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:40px 32px;text-align:center;width:320px;max-width:90vw}
-.login-box h2{font-size:1.3rem;font-weight:700;margin-bottom:6px}
-.login-box p{color:var(--muted);font-size:.83rem;margin-bottom:28px}
-#screen-register,#screen-pending{align-items:center;justify-content:center}
-.center-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:32px;width:360px;max-width:92vw;text-align:center}
-.center-box h3{font-size:1rem;font-weight:600;margin-bottom:16px}
-.center-box input,.center-box select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:9px 11px;color:var(--text);font-family:inherit;font-size:.87rem;margin-bottom:8px}.center-box input:focus,.center-box select:focus{outline:none;border-color:var(--accent)}
-.main-layout{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
-.main-content{flex:1;overflow-y:auto;min-height:0}
-.tab-pane{display:none;flex-direction:column;height:100%}.tab-pane.active{display:flex}
-.tab-bar{display:flex;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0;padding-bottom:env(safe-area-inset-bottom,0)}
-.tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:7px 4px;border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:.58rem;cursor:pointer;border-top:2px solid transparent}
-.tab-btn.active{color:var(--accent);border-top-color:var(--accent)}
-.tab-icon{font-size:1.1rem;line-height:1}.tab-label{font-weight:600}
-@media(min-width:1025px){
-  .main-layout{flex-direction:row}
-  .tab-bar{flex-direction:column;width:160px;border-top:none;border-right:1px solid var(--border);padding:20px 10px;justify-content:flex-start;gap:4px}
-  .tab-btn{flex:none;flex-direction:row;justify-content:flex-start;padding:10px 14px;border-radius:8px;border-top:none;border-left:2px solid transparent;font-size:.85rem;gap:8px}
-  .tab-btn.active{background:rgba(108,143,255,.1);border-left-color:var(--accent)}
-  .main-content{flex:1;overflow-y:auto}
-}
-.faith-topbar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;flex-wrap:wrap}
-.faith-title{font-size:.9rem;font-weight:600;flex:1;white-space:nowrap}
-.week-badge-btn{font-size:.72rem;color:var(--muted);background:var(--surface2);padding:4px 10px;border-radius:5px;border:.5px solid var(--border);cursor:pointer}.week-badge-btn:hover{border-color:var(--accent);color:var(--accent)}
-.table-scroll{overflow-x:auto;flex:1}
-.faith-table{width:100%;border-collapse:collapse;font-size:.78rem}
-.sector-row th{font-size:.72rem;font-weight:700;padding:5px 4px;border-bottom:.5px solid var(--border);text-align:center;position:sticky;top:0;z-index:3;white-space:nowrap}
-.s-worship{background:#1a2235;color:#85b7eb;border-right:2px solid rgba(133,183,235,.25)}
-.s-edu{background:#1a2a1a;color:#5dca85;border-right:2px solid rgba(93,202,133,.25)}
-.s-svc{background:#2a2015;color:#ef9f5a;border-right:2px solid rgba(239,159,90,.25)}
-.s-offering{background:#251520;color:#c97ab5;border-right:2px solid rgba(201,122,181,.25)}
-.s-goal{background:#1e1a2a;color:#a78bfa}
-.sub-head-row th{font-size:.65rem;font-weight:600;color:var(--muted);padding:4px 3px;border-bottom:1px solid var(--border);text-align:center;position:sticky;top:28px;z-index:2;white-space:nowrap;background:var(--surface)}
-.col-name{text-align:left;padding-left:10px;min-width:62px}
-.col-worship{min-width:54px;background:#141c2a}
-.col-tags-head{min-width:110px;text-align:left;padding-left:8px}
-.col-chk{width:32px}.col-weekly{background:#1a1a26}.col-monthly{color:var(--monthly)!important;background:#1a1508}.col-extra{background:#20141e}
-.col-prev-goal{min-width:110px;text-align:left;padding-left:6px}
-.col-result{width:90px;text-align:center}
-.col-cur-goal{min-width:150px;text-align:left;padding-left:6px}
-.faith-row{border-bottom:.5px solid var(--border)}.faith-row:hover{background:rgba(108,143,255,.04)}
-.col-name-td{padding:6px 4px 6px 10px;white-space:nowrap}
-.member-name-cell{font-weight:600;font-size:.82rem;cursor:pointer;color:var(--text);display:block}.member-name-cell:hover{color:var(--accent)}
-.col-worship-td{text-align:center;padding:4px 2px;cursor:pointer;min-width:54px;vertical-align:middle}.col-worship-td:hover{background:rgba(133,183,235,.1)}
-.sep-right{border-right:1px solid rgba(255,255,255,.07)!important}
-.w-none{color:rgba(200,200,200,.3);font-size:.82rem}
-.memo-icon{font-size:.65rem;cursor:pointer;opacity:.35;vertical-align:super;margin-left:1px;user-select:none}.memo-icon:hover{opacity:1}.memo-icon.memo-has{opacity:.9;filter:sepia(1) saturate(3) hue-rotate(10deg)}
-.col-tags-td{padding:4px 6px;min-width:110px;cursor:pointer;vertical-align:middle}.col-tags-td:hover{background:rgba(74,222,128,.06)}
-.item-badge{display:inline-block;background:rgba(74,222,128,.15);color:var(--success);border:1px solid rgba(74,222,128,.3);border-radius:4px;padding:2px 6px;font-size:.67rem;margin:1px 2px;user-select:none}
-.svc-badge{background:rgba(246,169,53,.15);color:var(--monthly);border-color:rgba(246,169,53,.3)}
-.badge-add{color:var(--muted);font-size:.8rem;padding:1px 4px;opacity:.5}
-.col-chk-td{text-align:center;padding:6px 2px;cursor:pointer;font-size:.82rem;color:var(--muted);width:32px}.col-chk-td:hover{background:rgba(108,143,255,.1)}.col-chk-td.checked{color:var(--accent);font-weight:700}
-.col-monthly-td.checked{color:var(--monthly)!important}.col-extra-td.checked{color:#c97ab5!important}
-.col-prev-goal-td{padding:4px 6px;font-size:.72rem;color:var(--muted);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.col-result-td{padding:3px 4px;text-align:center;white-space:nowrap}
-.result-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:.9rem;cursor:pointer;color:var(--muted);margin:1px;transition:all .15s;font-weight:600;min-width:32px}
-.result-btn:hover{border-color:var(--accent);opacity:.9}
-.result-on.r-○{background:rgba(74,222,128,.2);color:var(--success);border-color:var(--success)}
-.result-on.r-△{background:rgba(246,169,53,.2);color:var(--monthly);border-color:var(--monthly)}
-.result-on.r-✕{background:rgba(248,113,113,.2);color:var(--danger);border-color:var(--danger)}
-.col-cur-goal-td{padding:4px 8px 4px 4px;min-width:150px}
-.goal-input{width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:inherit;font-size:.78rem;padding:3px 2px;outline:none}.goal-input:focus{border-bottom-color:var(--accent)}.goal-input::placeholder{color:var(--muted)}.goal-input[readonly]{color:var(--muted);cursor:default}
-.leader-note-input{color:#a78bfa!important;margin-top:4px;border-bottom-color:rgba(167,139,250,.3)!important}.leader-note-input::placeholder{color:rgba(167,139,250,.5)!important}
-.table-hint{padding:5px 14px;font-size:.67rem;color:var(--muted);flex-shrink:0}
-.monthly-badge{background:rgba(246,169,53,.15);color:var(--monthly);padding:1px 5px;border-radius:3px;font-size:.67rem}
-.empty-td{text-align:center;padding:40px;color:var(--muted);font-size:.85rem}
-.worship-pop{position:fixed;z-index:499;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;min-width:190px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
-.pop-title{font-size:.8rem;font-weight:700;margin-bottom:8px}
-.pop-sec{margin-bottom:8px}.pop-sec-label{font-size:.65rem;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
-.pop-row{display:flex;flex-wrap:wrap;gap:4px}
-.pop-btn{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:5px 9px;font-size:.75rem;cursor:pointer;color:var(--muted);transition:all .15s}.pop-btn:hover{border-color:var(--accent);color:var(--accent)}.pop-btn.pop-on{background:rgba(108,143,255,.2);border-color:var(--accent);color:var(--accent);font-weight:600}
-.pop-clear{display:block;width:100%;margin-top:6px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:5px;padding:5px;font-size:.72rem;cursor:pointer;color:var(--danger)}
-.calendar-pop{min-width:236px}
-.cal-header{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:.62rem;color:var(--muted);margin-bottom:3px;padding:0 2px}
-.cal-week{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;border-radius:6px;cursor:pointer;padding:3px 2px;transition:background .15s}.cal-week:hover{background:rgba(108,143,255,.12)}.cal-week.cal-week-on{background:rgba(108,143,255,.2);border:1px solid var(--accent)}
-.cal-day{font-size:.75rem;padding:3px 0;line-height:1.4}.cal-dim{opacity:.3}.cal-this{color:var(--accent);font-weight:700}
-.region-group{margin-bottom:14px}.region-group-title{font-size:.72rem;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
-.district-btn-row{display:flex;flex-wrap:wrap;gap:6px}
-.district-pick-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 14px;font-size:.83rem;cursor:pointer;transition:all .2s}.district-pick-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(108,143,255,.08)}
-.settings-body{padding:16px;max-width:480px;margin:0 auto;width:100%}
-.settings-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
-.settings-item{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s}.settings-item:last-child{border-bottom:none}.settings-item:hover{background:var(--surface2)}
-.si-icon{font-size:1.1rem;flex-shrink:0;width:24px;text-align:center}.si-label{flex:1;font-size:.88rem;font-weight:500}.si-arr{color:var(--muted)}
-.settings-danger .si-label{color:var(--danger)}.settings-ver{text-align:center;color:var(--muted);font-size:.7rem;padding:8px}
-#screen-profile{flex-direction:column;background:var(--bg)}
-.profile-hdr{background:linear-gradient(135deg,#1a1d27,#0f1117);border-bottom:1px solid var(--border);padding:11px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
-.profile-body{flex:1;overflow-y:auto;padding:16px;max-width:700px;width:100%;margin:0 auto}
-.profile-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px}
-.profile-section-title{font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
-.pf-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pf-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-@media(max-width:480px){.pf-grid{grid-template-columns:1fr}.pf-grid-3{grid-template-columns:1fr 1fr}}
-.pf-field{display:flex;flex-direction:column;gap:4px}.pf-field.full{grid-column:1/-1}
-.pf-label{font-size:.7rem;color:var(--muted);font-weight:500}
-.pf-input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-family:inherit;font-size:.83rem;outline:none;width:100%}.pf-input:focus{border-color:var(--accent)}.pf-input[readonly]{color:var(--muted);cursor:default;background:transparent;border-color:transparent;padding-left:0}
-.pf-textarea{resize:vertical;min-height:60px;line-height:1.6}
-.level-group{display:flex;gap:5px;margin-top:2px;flex-wrap:wrap}
-.level-btn{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:5px 12px;font-size:.78rem;cursor:pointer;color:var(--muted);transition:all .15s}
-.level-btn[data-val="상"].level-on{background:rgba(74,222,128,.15);color:var(--success);border-color:var(--success);font-weight:700}
-.level-btn[data-val="중"].level-on{background:rgba(246,169,53,.15);color:var(--monthly);border-color:var(--monthly);font-weight:700}
-.level-btn[data-val="하"].level-on{background:rgba(248,113,113,.15);color:var(--danger);border-color:var(--danger);font-weight:700}
-.level-btn[data-val="가족신앙"].level-on,.level-btn[data-val="홀신앙"].level-on,.level-btn[data-val="부분가족신앙"].level-on{background:rgba(108,143,255,.2);color:var(--accent);border-color:var(--accent);font-weight:700}
-.spirit-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.spirit-btn{border-radius:6px;padding:6px 12px;font-size:.78rem;cursor:pointer;border:.5px solid;font-weight:500;transition:all .2s;opacity:.4}.spirit-btn:hover{opacity:.8}.spirit-btn.spirit-on{opacity:1;font-weight:700}
-.prev-leader-box{background:rgba(108,143,255,.06);border:1px solid rgba(108,143,255,.2);border-radius:8px;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.user-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:6px;background:var(--surface2);flex-wrap:wrap}.row-inactive{opacity:.5}
-.user-info{flex:1;min-width:100px}.user-name{font-size:.85rem;font-weight:600;margin-bottom:2px}.user-sub{font-size:.7rem;color:var(--muted)}
-.user-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap;flex-shrink:0}
-.role-badge{font-size:.7rem;color:var(--muted);padding:2px 7px;border-radius:4px;background:var(--surface)}
-.small-select{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 6px;font-size:.72rem;font-family:inherit}
-.section-label{font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}.danger-label{color:var(--danger)}
-.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}.modal-bg.show{display:flex}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;width:360px;max-width:92vw;max-height:88vh;overflow-y:auto}
-.modal h3{font-size:.9rem;font-weight:600;margin-bottom:12px}
-.modal input,.modal select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:inherit;font-size:.87rem;margin-bottom:8px}.modal input:focus,.modal select:focus{outline:none;border-color:var(--accent)}
-.modal-scroll{max-height:280px;overflow-y:auto;margin-bottom:10px}
-.modal-btns{display:flex;gap:6px;margin-top:6px}.modal-btns button{flex:1;padding:9px;border-radius:6px;border:none;font-family:inherit;font-size:.83rem;font-weight:600;cursor:pointer}.modal-btns .ok{background:var(--accent);color:#fff}.modal-btns .cancel{background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
-.modal-wide{width:480px}.modal-hint{font-size:.72rem;color:var(--muted);margin-bottom:6px}
-.add-row{display:flex;gap:8px;margin-bottom:10px;align-items:center}.add-row input,.add-row select{flex:1;margin-bottom:0;min-width:0}.add-row .btn-xs{flex-shrink:0;padding:7px 12px;font-size:.78rem}
-.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;color:var(--muted);text-align:center;padding:20px;font-size:.85rem;line-height:1.8}
-.loading{text-align:center;padding:40px;color:var(--muted);font-size:.85rem}
-#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:8px 18px;font-size:.82rem;box-shadow:0 4px 16px rgba(0,0,0,.3);transition:transform .3s;z-index:999;white-space:nowrap}
-#toast.show{transform:translateX(-50%) translateY(0)}
-@media(min-width:1025px){#toast{bottom:24px}}
-::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-</style>
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+
 <!-- 로그인 -->
 <div class="screen" id="screen-login">
   <div class="login-box">
@@ -1032,6 +17,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Google로 로그인</button>
   </div>
 </div>
+
 <!-- 가입 신청 -->
 <div class="screen" id="screen-register">
   <div class="center-box">
@@ -1039,12 +25,19 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <h3>접속 신청</h3>
     <p style="font-size:.75rem;color:var(--muted);margin-bottom:14px" id="reg-email"></p>
     <input type="text" id="reg-name" placeholder="이름 (필수)">
-    <select id="reg-region-sel"><option value="">소속 지역 선택 *</option><option value="구리">구리</option><option value="남양주">남양주</option><option value="창조">창조</option><option value="회장단">회장단</option></select>
+    <select id="reg-region-sel">
+      <option value="">소속 지역 선택 *</option>
+      <option value="구리">구리</option>
+      <option value="남양주">남양주</option>
+      <option value="창조">창조</option>
+      <option value="회장단">회장단</option>
+    </select>
     <p style="font-size:.7rem;color:var(--muted);margin-bottom:10px;text-align:left">모든 신청자는 구역장으로 등록됩니다.</p>
     <button class="btn btn-primary" style="width:100%;margin-top:6px" onclick="submitRegister()">신청하기</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="doLogout()">취소</button>
   </div>
 </div>
+
 <!-- 대기 -->
 <div class="screen" id="screen-pending">
   <div class="center-box">
@@ -1054,6 +47,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <button class="btn btn-ghost" style="width:100%" onclick="doLogout()">로그아웃</button>
   </div>
 </div>
+
 <!-- 메인 -->
 <div class="screen" id="screen-main">
   <div class="hdr">
@@ -1070,22 +64,35 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
       <div class="tab-pane" id="tab-settings">
         <div class="settings-body">
           <div class="settings-section">
-            <div class="settings-item" onclick="openNickModal()"><span class="si-icon">✏️</span><span class="si-label">닉네임 변경</span><span class="uname" style="font-size:.78rem;color:var(--muted)"></span><span class="si-arr">›</span></div>
+            <div class="settings-item" onclick="openNickModal()">
+              <span class="si-icon">✏️</span><span class="si-label">닉네임 변경</span>
+              <span class="uname" style="font-size:.78rem;color:var(--muted)"></span><span class="si-arr">›</span>
+            </div>
           </div>
           <div class="settings-section leader-only">
-            <div class="settings-item" id="btn-member-settings"><span class="si-icon">👥</span><span class="si-label">구역원 관리</span><span class="si-arr">›</span></div>
+            <div class="settings-item" id="btn-member-settings">
+              <span class="si-icon">👥</span><span class="si-label">구역원 관리</span><span class="si-arr">›</span>
+            </div>
           </div>
           <div class="settings-section region-only">
-            <div class="settings-item" onclick="openAssignModal()"><span class="si-icon">📌</span><span class="si-label">구역장 배정</span><span class="si-arr">›</span></div>
-            <div class="settings-item" onclick="openUserMgmt()"><span class="si-icon">🔑</span><span class="si-label">멤버 · 승인 관리</span><span class="si-arr">›</span></div>
+            <div class="settings-item" onclick="openAssignModal()">
+              <span class="si-icon">📌</span><span class="si-label">구역장 배정</span><span class="si-arr">›</span>
+            </div>
+            <div class="settings-item" onclick="openUserMgmt()">
+              <span class="si-icon">🔑</span><span class="si-label">멤버 · 승인 관리</span><span class="si-arr">›</span>
+            </div>
           </div>
           <div class="settings-section sa-only">
-            <div class="settings-item" onclick="openDistrictMgmt()"><span class="si-icon">🗺</span><span class="si-label">지역 · 구역 관리</span><span class="si-arr">›</span></div>
+            <div class="settings-item" onclick="openDistrictMgmt()">
+              <span class="si-icon">🗺</span><span class="si-label">지역 · 구역 관리</span><span class="si-arr">›</span>
+            </div>
           </div>
           <div class="settings-section">
-            <div class="settings-item settings-danger" onclick="doLogout()"><span class="si-icon">🚪</span><span class="si-label">로그아웃</span></div>
+            <div class="settings-item settings-danger" onclick="doLogout()">
+              <span class="si-icon">🚪</span><span class="si-label">로그아웃</span>
+            </div>
           </div>
-          <div class="settings-ver">구역 관리 v3.0</div>
+          <div class="settings-ver">구역 관리 v3.1</div>
         </div>
       </div>
     </div>
@@ -1111,10 +118,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
       <div class="profile-section-title">✨ 심령 단계</div>
       <div id="spirit-display" style="display:none"></div>
       <div class="spirit-btns">
-        <button class="spirit-btn pf-editable" data-key="fly" onclick="setSpiritLevel('fly')" style="background:rgba(167,139,250,.18);color:#a78bfa;border-color:rgba(167,139,250,.5)">🦋 날라다녀</button>
-        <button class="spirit-btn pf-editable" data-key="run" onclick="setSpiritLevel('run')" style="background:rgba(108,143,255,.18);color:#6c8fff;border-color:rgba(108,143,255,.5)">🏃 뛰고있어</button>
-        <button class="spirit-btn pf-editable" data-key="walk" onclick="setSpiritLevel('walk')" style="background:rgba(74,222,128,.18);color:#4ade80;border-color:rgba(74,222,128,.5)">🚶 걷고있어</button>
-        <button class="spirit-btn pf-editable" data-key="lay" onclick="setSpiritLevel('lay')" style="background:rgba(246,169,53,.18);color:#f6a935;border-color:rgba(246,169,53,.5)">😪 누워있어</button>
+        <button class="spirit-btn pf-editable" data-key="fly"   onclick="setSpiritLevel('fly')"   style="background:rgba(167,139,250,.18);color:#a78bfa;border-color:rgba(167,139,250,.5)">🦋 날라다녀</button>
+        <button class="spirit-btn pf-editable" data-key="run"   onclick="setSpiritLevel('run')"   style="background:rgba(108,143,255,.18);color:#6c8fff;border-color:rgba(108,143,255,.5)">🏃 뛰고있어</button>
+        <button class="spirit-btn pf-editable" data-key="walk"  onclick="setSpiritLevel('walk')"  style="background:rgba(74,222,128,.18);color:#4ade80;border-color:rgba(74,222,128,.5)">🚶 걷고있어</button>
+        <button class="spirit-btn pf-editable" data-key="lay"   onclick="setSpiritLevel('lay')"   style="background:rgba(246,169,53,.18);color:#f6a935;border-color:rgba(246,169,53,.5)">😪 누워있어</button>
         <button class="spirit-btn pf-editable" data-key="sleep" onclick="setSpiritLevel('sleep')" style="background:rgba(248,113,113,.18);color:#f87171;border-color:rgba(248,113,113,.5)">😴 자고있어</button>
       </div>
       <input type="hidden" id="pf-spiritLevel">
@@ -1130,8 +137,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
         <div class="pf-field full">
           <label class="pf-label">신앙 유형</label>
           <div class="level-group">
-            <button class="level-btn pf-editable" data-field="faithType" data-val="가족신앙" onclick="setFaithType('가족신앙')">가족신앙</button>
-            <button class="level-btn pf-editable" data-field="faithType" data-val="홀신앙" onclick="setFaithType('홀신앙')">홀신앙</button>
+            <button class="level-btn pf-editable" data-field="faithType" data-val="가족신앙"    onclick="setFaithType('가족신앙')">가족신앙</button>
+            <button class="level-btn pf-editable" data-field="faithType" data-val="홀신앙"     onclick="setFaithType('홀신앙')">홀신앙</button>
             <button class="level-btn pf-editable" data-field="faithType" data-val="부분가족신앙" onclick="setFaithType('부분가족신앙')">부분가족신앙</button>
           </div>
           <input type="hidden" id="pf-faithType">
@@ -1243,6 +250,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <div class="modal-btns"><button class="ok" onclick="addMember()">추가</button><button class="cancel" onclick="closeMemberModal()">닫기</button></div>
   </div>
 </div>
+
 <!-- 목록 관리 -->
 <div class="modal-bg" id="modal-listmgmt">
   <div class="modal">
@@ -1253,6 +261,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <div style="text-align:right;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="closeListMgmt()">닫기</button></div>
   </div>
 </div>
+
 <!-- 멤버 관리 -->
 <div class="modal-bg" id="modal-users">
   <div class="modal modal-wide">
@@ -1261,6 +270,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <div style="text-align:right;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="closeUserMgmt()">닫기</button></div>
   </div>
 </div>
+
 <!-- 지역·구역 관리 -->
 <div class="modal-bg" id="modal-districts">
   <div class="modal modal-wide">
@@ -1275,6 +285,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <div style="text-align:right;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="closeDistrictMgmt()">닫기</button></div>
   </div>
 </div>
+
 <!-- 배정 -->
 <div class="modal-bg" id="modal-assign">
   <div class="modal modal-wide">
@@ -1283,6 +294,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <div style="text-align:right;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="closeAssignModal()">닫기</button></div>
   </div>
 </div>
+
 <!-- 닉네임 -->
 <div class="modal-bg" id="modal-nickname">
   <div class="modal" style="width:300px">
@@ -1291,6 +303,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <div class="modal-btns"><button class="ok" onclick="saveNickname()">저장</button><button class="cancel" onclick="closeNickModal()">취소</button></div>
   </div>
 </div>
+
 <div id="toast"></div>
+
+<script type="module" src="js/app.js"></script>
 </body>
 </html>
