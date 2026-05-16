@@ -329,8 +329,7 @@ async function loadFaithWeek(){
       return`<span style="color:${c};font-size:.72rem;white-space:nowrap">${s}<br><span style="font-size:.65rem;opacity:.8">${sub}</span></span>${memoIcon}`;
     };
 
-    const resultBtns=['○','△','✕'].map(r=>`<button class="result-btn ${goal.prevResult===r?'result-on r-'+r:''}" onclick="${canEdit()?`setResult('${did}','${mid}','${r}')`:''}">${r}</button>`).join('');
-
+    
     const tr=document.createElement('tr');
     tr.className='faith-row';tr.dataset.mid=mid;
 
