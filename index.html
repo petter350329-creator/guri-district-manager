@@ -52,7 +52,7 @@ const canEdit=()=>isLeader();
 
 function showScreen(n){document.querySelectorAll('.screen').forEach(s=>s.style.display='none');const el=document.getElementById('screen-'+n);if(el)el.style.display='flex';}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
-function closePop(){if(activePop){activePop.remove();activePop=null;}}
+function closePop(e){if(activePop&&e&&activePop.contains(e.target))return;if(activePop){activePop.remove();activePop=null;}}
 
 // ── 인증 ──
 onAuthStateChanged(auth,async user=>{
@@ -169,10 +169,10 @@ async function loadFaithWeek(){
       <tr class="sector-row">
         <th class="col-name" rowspan="2">이름</th>
         <th colspan="2" class="sector-head s-worship">⛪ 예배</th>
-        <th colspan="${Math.max(eduCols.length,1)}" class="sector-head s-edu">
+        <th colspan="1" class="sector-head s-edu">
           📖 교육 ${canManageLists()?`<button class="mgmt-btn" onclick="openListMgmt('edu','${did}')">관리</button>`:''}
         </th>
-        <th colspan="${Math.max(svcCols.length,1)}" class="sector-head s-svc">
+        <th colspan="1" class="sector-head s-svc">
           🤝 봉사 ${canManageLists()?`<button class="mgmt-btn" onclick="openListMgmt('service','${did}')">관리</button>`:''}
         </th>
         <th colspan="${3+extraCols.length}" class="sector-head s-offering">
@@ -183,8 +183,8 @@ async function loadFaithWeek(){
       <tr class="sub-head-row">
         <th class="col-worship">삼일</th>
         <th class="col-worship">주일</th>
-        ${eduCols.length?eduCols.map(([,e])=>`<th class="col-dyn">${e.name}</th>`).join(''):`<th class="col-dyn muted-th">—</th>`}
-        ${svcCols.length?svcCols.map(([,s])=>`<th class="col-dyn">${s.name}</th>`).join(''):`<th class="col-dyn muted-th">—</th>`}
+        <th class="col-tags-head">받은 교육</th>
+        <th class="col-tags-head">봉사 활동</th>
         <th class="col-chk col-weekly" title="주정헌금">주정</th>
         <th class="col-chk col-monthly" title="십일조(월간)">십일</th>
         <th class="col-chk col-monthly" title="건축헌금(월간)">건축</th>
@@ -221,8 +221,8 @@ async function loadFaithWeek(){
       <td class="col-name-td"><span class="member-name-cell" onclick="openProfile('${did}','${mid}','${member.name}')">${member.name}</span></td>
       <td class="col-worship-td" onclick="${canEdit()?`openWorshipPop(event,'${did}','${mid}','samil')`:''}">${wLabel(worship.samil)}</td>
       <td class="col-worship-td" onclick="${canEdit()?`openWorshipPop(event,'${did}','${mid}','juil')`:''}">${wLabel(worship.juil)}</td>
-      ${eduCols.length?eduCols.map(([id])=>`<td class="col-dyn-td ${eduDone[id]?'dyn-done':''}" onclick="${canEdit()?`toggleDyn('${did}','${mid}','${id}','edu')`:''}">${eduDone[id]?'✓':''}</td>`).join(''):`<td class="col-dyn-td"></td>`}
-      ${svcCols.length?svcCols.map(([id])=>`<td class="col-dyn-td ${svcDone[id]?'dyn-done':''}" onclick="${canEdit()?`toggleDyn('${did}','${mid}','${id}','service')`:''}">${svcDone[id]?'✓':''}</td>`).join(''):`<td class="col-dyn-td"></td>`}
+      <td class="col-tags-td" onclick="${canEdit()?`openDynPop(event,'${did}','${mid}','edu')`:''}">${Object.keys(eduDone).filter(id=>eduDone[id]).map(id=>`<span class="item-badge" ondblclick="event.stopPropagation();${canEdit()?`removeDyn('${did}','${mid}','${id}','edu')`:''}">${eduListCache[id]?.name||'?'}</span>`).join('')}${canEdit()?`<span class="badge-add">+</span>`:''}</td>
+      <td class="col-tags-td" onclick="${canEdit()?`openDynPop(event,'${did}','${mid}','service')`:''}">${Object.keys(svcDone).filter(id=>svcDone[id]).map(id=>`<span class="item-badge svc-badge" ondblclick="event.stopPropagation();${canEdit()?`removeDyn('${did}','${mid}','${id}','service')`:''}">${serviceListCache[id]?.name||'?'}</span>`).join('')}${canEdit()?`<span class="badge-add">+</span>`:''}</td>
       <td class="col-chk-td ${w.offering?.weekly?'checked':''}" onclick="${canEdit()?`toggleWkly('${did}','${mid}')`:''}">${w.offering?.weekly?'✓':''}</td>
       <td class="col-chk-td col-monthly-td ${mOff.tithe?'checked':''}" onclick="${canEdit()?`toggleMonthly('${did}','${mid}','tithe')`:''}">${mOff.tithe?'✓':''}</td>
       <td class="col-chk-td col-monthly-td ${mOff.construction?'checked':''}" onclick="${canEdit()?`toggleMonthly('${did}','${mid}','construction')`:''}">${mOff.construction?'✓':''}</td>
@@ -269,7 +269,7 @@ window.openWorshipPop=async(event,did,mid,wType)=>{
     </div>
     <button class="pop-clear" onclick="setWorship('${did}','${mid}','${wType}',null,null,null)">✕ 미출석</button>`;
 
-  const rect=event.currentTarget.getBoundingClientRect();
+  const rect=(event.currentTarget||event.target).getBoundingClientRect();
   pop.style.top=(rect.bottom+4)+'px';
   pop.style.left=Math.max(4,Math.min(rect.left,window.innerWidth-200))+'px';
   document.body.appendChild(pop);activePop=pop;
@@ -282,12 +282,47 @@ window.setWorship=async(did,mid,wType,type,time,excuseType)=>{
   closePop();await loadFaithWeek();
 };
 
-// ── 교육/봉사 토글 ──
-window.toggleDyn=async(did,mid,itemId,listType)=>{
-  const key=listType==='edu'?'education':'service';
+// ── 교육/봉사 팝오버 ──
+window.openDynPop=async(event,did,mid,listType)=>{
+  event.stopPropagation();closePop();
+  const isEdu=listType==='edu';
+  const list=isEdu?eduListCache:serviceListCache;
+  const items=Object.entries(list);
+  if(!items.length){showToast((isEdu?'교육':'봉사')+' 목록을 먼저 추가해주세요');return;}
+  const key=isEdu?'education':'service';
+  const snap=await get(ref(db,`weekly/${did}/${currentWeekId}/${mid}/${key}`));
+  const done=snap.val()||{};
+
+  const pop=document.createElement('div');
+  pop.className='worship-pop';
+  pop.innerHTML=`
+    <div class="pop-title">${isEdu?'📖 교육':'🤝 봉사'} 선택 <span style="font-size:.65rem;color:var(--muted)">(더블클릭으로 제거)</span></div>
+    <div class="pop-row" id="dyn-pop-row">
+      ${items.map(([id,v])=>`<button class="pop-btn ${done[id]?'pop-on':''}" id="dpb-${id}" onclick="toggleDynPop('${did}','${mid}','${id}','${listType}','${key}')">${done[id]?'✓ ':''}${v.name}</button>`).join('')}
+    </div>`;
+  const rect=(event.currentTarget||event.target).getBoundingClientRect();
+  pop.style.top=(rect.bottom+4)+'px';
+  pop.style.left=Math.max(4,Math.min(rect.left,window.innerWidth-210))+'px';
+  document.body.appendChild(pop);activePop=pop;
+  setTimeout(()=>document.addEventListener('click',closePop,{once:true}),50);
+};
+
+window.toggleDynPop=async(did,mid,itemId,listType,key)=>{
   const path=`weekly/${did}/${currentWeekId}/${mid}/${key}/${itemId}`;
   const s=await get(ref(db,path));
-  await set(ref(db,path),s.val()?null:true);
+  const newVal=s.val()?null:true;
+  await set(ref(db,path),newVal);
+  // 팝오버 버튼만 갱신
+  const btn=document.getElementById('dpb-'+itemId);
+  const list=listType==='edu'?eduListCache:serviceListCache;
+  if(btn){btn.className='pop-btn'+(newVal?' pop-on':'');btn.textContent=(newVal?'✓ ':'')+list[itemId]?.name;}
+  // 테이블 행만 갱신
+  await loadFaithWeek();
+};
+
+window.removeDyn=async(did,mid,itemId,listType)=>{
+  const key=listType==='edu'?'education':'service';
+  await set(ref(db,`weekly/${did}/${currentWeekId}/${mid}/${key}/${itemId}`),null);
   await loadFaithWeek();
 };
 
@@ -327,6 +362,7 @@ window.addMgmtItem=async()=>{
   const r=push(ref(db,paths[mgmtType]));await set(r,{name});
   document.getElementById('inp-mgmt-name').value='';
   showToast('✅ 추가됐어요');await refreshMgmtList();await loadDynLists(mgmtDid);
+  if(faithDistrictId===mgmtDid)await loadFaithWeek();
 };
 window.deleteMgmtItem=async(id)=>{
   if(!confirm('삭제할까요?'))return;
@@ -589,6 +625,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .goal-input:focus{border-bottom-color:var(--accent)}
 .goal-input::placeholder{color:var(--muted)}
 .goal-input[readonly]{color:var(--muted);cursor:default}
+.col-tags-head{min-width:120px;text-align:left;padding-left:8px}
+.col-tags-td{padding:5px 8px;min-width:120px;cursor:pointer;vertical-align:middle}
+.col-tags-td:hover{background:rgba(74,222,128,.06)}
+.item-badge{display:inline-block;background:rgba(74,222,128,.15);color:var(--success);border:1px solid rgba(74,222,128,.3);border-radius:4px;padding:2px 7px;font-size:.68rem;margin:1px 2px;cursor:default;white-space:nowrap}
+.svc-badge{background:rgba(246,169,53,.15);color:var(--monthly);border-color:rgba(246,169,53,.3)}
+.badge-add{display:inline-block;color:var(--muted);font-size:.8rem;padding:1px 4px;vertical-align:middle;opacity:.5}
 .table-hint{padding:5px 14px;font-size:.67rem;color:var(--muted);flex-shrink:0}
 .monthly-badge{background:rgba(246,169,53,.15);color:var(--monthly);padding:1px 5px;border-radius:3px;font-size:.67rem}
 
