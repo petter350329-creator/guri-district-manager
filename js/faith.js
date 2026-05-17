@@ -1,4 +1,4 @@
-import { db, state, SPIRIT_LEVELS, isRegion, isLeader, canEdit } from './config.js';
+import { db, state, SPIRIT_LEVELS, REGION_ADMIN_NAME, isRegion, isLeader, canEdit } from './config.js';
 import { showToast, getWeekId, getWeekLabel, shiftWeek, monthFromWeek } from './utils.js';
 import { openWorshipPop, openMemoPop, openDynPop, openWeekPicker } from './popups.js';
 import { openListMgmt } from './settings.js';
@@ -199,10 +199,16 @@ export async function loadFaithWeek() {
       return '<button class="result-btn' + (on?' result-on r-'+r:'') + '" data-did="' + did + '" data-mid="' + mid + '" data-r="' + r + '">' + RESULT_EMOJI[r] + '</button>';
     }).join('');
 
+    // 결재 배지
+    const stamp = detailData[mid]?.managerStamp;
+    const stampBadge = stamp
+      ? '<span class="stamp-mini stamp-mini-done" title="' + (stamp.name||'') + ' 확인">✅ ' + (stamp.name||'임원') + '</span>'
+      : '<span class="stamp-mini stamp-mini-empty" data-did="' + did + '" data-mid="' + mid + '" style="cursor:pointer">미확인</span>';
+
     const tr = document.createElement('tr');
     tr.className = 'faith-row';
     tr.innerHTML =
-      '<td class="col-name-td"><span class="member-name-cell" data-did="' + did + '" data-mid="' + mid + '" data-name="' + member.name + '">' + member.name + '</span>' + spBadge + '</td>'
+      '<td class="col-name-td"><span class="member-name-cell" data-did="' + did + '" data-mid="' + mid + '" data-name="' + member.name + '">' + member.name + '</span>' + spBadge + stampBadge + '</td>'
       + '<td class="col-worship-td" data-did="' + did + '" data-mid="' + mid + '" data-wtype="samil">' + wCell(wor.samil,'samil') + '</td>'
       + '<td class="col-worship-td sep-right" data-did="' + did + '" data-mid="' + mid + '" data-wtype="juil">' + wCell(wor.juil,'juil') + '</td>'
       + '<td class="col-tags-td" data-did="' + did + '" data-mid="' + mid + '" data-dtype="edu">' + eduBadges + (canEdit() ? '<span class="badge-add">+</span>' : '') + '</td>'
@@ -228,6 +234,9 @@ export async function loadFaithWeek() {
     const t = e.target;
     const nameCell = t.closest('.member-name-cell');
     if (nameCell) { openProfile(nameCell.dataset.did, nameCell.dataset.mid, nameCell.dataset.name); return; }
+    // 결재 배지 클릭 → 임원이면 도장 찍기
+    const stampMini = t.closest('.stamp-mini-empty[data-did]');
+    if (stampMini && isRegion()) { applyStampFromTable(stampMini.dataset.did, stampMini.dataset.mid, stampMini); return; }
     if (t.classList.contains('memo-icon')) { e.stopPropagation(); openMemoPop(t, t.dataset.did, t.dataset.mid, t.dataset.wtype, loadFaithWeek); return; }
     if (!canEdit()) return;
     const wTd = t.closest('.col-worship-td');
@@ -267,3 +276,15 @@ async function toggleMonthly(did, mid, f) { const p = 'monthly/'+did+'/'+state.c
 async function toggleExtra(did, mid, id)  { const p = 'monthly/'+did+'/'+state.currentMonthId+'/'+mid+'/offering/extras/'+id; const s=await get(ref(db,p)); await set(ref(db,p),s.val()?null:true); loadFaithWeek(); }
 async function toggleResult(did, mid, r)  { const p = 'weekly/'+did+'/'+state.currentWeekId+'/'+mid+'/goal/prevResult'; const s=await get(ref(db,p)); await set(ref(db,p),s.val()===r?null:r); loadFaithWeek(); }
 async function removeDyn(did, mid, id, t) { const k=t==='edu'?'education':'service'; await set(ref(db,'weekly/'+did+'/'+state.currentWeekId+'/'+mid+'/'+k+'/'+id),null); loadFaithWeek(); }
+
+// ── 신앙관리 테이블에서 도장 찍기 ──
+async function applyStampFromTable(did, mid, el) {
+  if (!isRegion()) return;
+  if (!confirm('확인 도장을 찍을까요?')) return;
+  const rid = state.districtsCache[did]?.regionId || '';
+  const rName = state.regionsCache[rid]?.name || '';
+  const adminName = REGION_ADMIN_NAME[rName] || state.userNickname || '임원';
+  const stamp = { uid: state.currentUser.uid, name: adminName, timestamp: Date.now() };
+  await set(ref(db, 'memberDetail/' + did + '/' + mid + '/managerStamp'), stamp);
+  loadFaithWeek();
+}
