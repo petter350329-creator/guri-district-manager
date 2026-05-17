@@ -1,4 +1,4 @@
-import { db, state, SPIRIT_LEVELS, REGION_ADMIN_NAME, isRegion, isLeader, canEdit } from './config.js';
+import { db, state, SPIRIT_LEVELS, isRegion, isLeader, canEdit } from './config.js';
 import { showToast, getWeekId, getWeekLabel, shiftWeek, monthFromWeek } from './utils.js';
 import { openWorshipPop, openMemoPop, openDynPop, openWeekPicker } from './popups.js';
 import { openListMgmt } from './settings.js';
@@ -12,7 +12,7 @@ export async function initFaithTab() {
   if (state.userRole === 'district_leader') {
     state.faithDistrictId = state.userDistrictId;
     if (!state.faithDistrictId) {
-      el.innerHTML = '<div class="empty-state"><p>소속 구역이 없습니다<br>임원에게 문의하세요</p></div>';
+      el.innerHTML = '<div class="empty-state"><p>소속 구역이 없습니다<br><span style="font-size:.8rem;color:var(--muted);line-height:2">담당 임원님께 문의하고 기다려주세요</span></p></div>';
       return;
     }
     await loadFaithWeek(); return;
@@ -199,16 +199,32 @@ export async function loadFaithWeek() {
       return '<button class="result-btn' + (on?' result-on r-'+r:'') + '" data-did="' + did + '" data-mid="' + mid + '" data-r="' + r + '">' + RESULT_EMOJI[r] + '</button>';
     }).join('');
 
-    // 결재 배지
+    // 결재 도장 — 오른쪽 위에 큼직하게
     const stamp = detailData[mid]?.managerStamp;
+    const stampDate = stamp ? new Date(stamp.timestamp) : null;
+    const stampDateStr = stampDate
+      ? (stampDate.getMonth()+1) + '.' + stampDate.getDate()
+      : '';
     const stampBadge = stamp
-      ? '<span class="stamp-mini stamp-mini-done" title="' + (stamp.name||'') + ' 확인">✅ ' + (stamp.name||'임원') + '</span>'
-      : '<span class="stamp-mini stamp-mini-empty" data-did="' + did + '" data-mid="' + mid + '" style="cursor:pointer">미확인</span>';
+      ? '<div class="stamp-overlay stamp-done-overlay'+(isRegion()?' stamp-cancellable':'')+'" data-did="'+did+'" data-mid="'+mid+'">'
+        + '<div style="font-size:.85rem;line-height:1;font-weight:900">✓</div>'
+        + '<div class="so-name">'+( stamp.name||'임원')+'</div>'
+        + '<div class="so-role">확인</div>'
+        + '<div class="so-date">'+stampDateStr+'</div>'
+        + '</div>'
+      : (isRegion()
+          ? '<div class="stamp-overlay stamp-empty-overlay" data-did="'+did+'" data-mid="'+mid+'">'
+            + '<div style="font-size:.75rem;line-height:1">未</div>'
+            + '<div class="so-role">미확인</div>'
+            + '</div>'
+          : '');
 
     const tr = document.createElement('tr');
     tr.className = 'faith-row';
     tr.innerHTML =
-      '<td class="col-name-td"><span class="member-name-cell" data-did="' + did + '" data-mid="' + mid + '" data-name="' + member.name + '">' + member.name + '</span>' + spBadge + stampBadge + '</td>'
+      '<td class="col-name-td" style="position:relative;padding-right:'+(isRegion()?'52px':'4px')+'">'
+      + '<span class="member-name-cell" data-did="'+did+'" data-mid="'+mid+'" data-name="'+member.name+'">'+member.name+'</span>'
+      + spBadge + stampBadge + '</td>'
       + '<td class="col-worship-td" data-did="' + did + '" data-mid="' + mid + '" data-wtype="samil">' + wCell(wor.samil,'samil') + '</td>'
       + '<td class="col-worship-td sep-right" data-did="' + did + '" data-mid="' + mid + '" data-wtype="juil">' + wCell(wor.juil,'juil') + '</td>'
       + '<td class="col-tags-td" data-did="' + did + '" data-mid="' + mid + '" data-dtype="edu">' + eduBadges + (canEdit() ? '<span class="badge-add">+</span>' : '') + '</td>'
@@ -234,9 +250,16 @@ export async function loadFaithWeek() {
     const t = e.target;
     const nameCell = t.closest('.member-name-cell');
     if (nameCell) { openProfile(nameCell.dataset.did, nameCell.dataset.mid, nameCell.dataset.name); return; }
-    // 결재 배지 클릭 → 임원이면 도장 찍기
-    const stampMini = t.closest('.stamp-mini-empty[data-did]');
-    if (stampMini && isRegion()) { applyStampFromTable(stampMini.dataset.did, stampMini.dataset.mid, stampMini); return; }
+    // 도장 overlay 클릭 — 찍기 / 취소
+    const stampEl = t.closest('.stamp-overlay[data-did]');
+    if (stampEl && isRegion()) {
+      if (stampEl.classList.contains('stamp-done-overlay')) {
+        removeStampFromTable(stampEl.dataset.did, stampEl.dataset.mid);
+      } else {
+        applyStampFromTable(stampEl.dataset.did, stampEl.dataset.mid, stampEl);
+      }
+      return;
+    }
     if (t.classList.contains('memo-icon')) { e.stopPropagation(); openMemoPop(t, t.dataset.did, t.dataset.mid, t.dataset.wtype, loadFaithWeek); return; }
     if (!canEdit()) return;
     const wTd = t.closest('.col-worship-td');
@@ -277,14 +300,22 @@ async function toggleExtra(did, mid, id)  { const p = 'monthly/'+did+'/'+state.c
 async function toggleResult(did, mid, r)  { const p = 'weekly/'+did+'/'+state.currentWeekId+'/'+mid+'/goal/prevResult'; const s=await get(ref(db,p)); await set(ref(db,p),s.val()===r?null:r); loadFaithWeek(); }
 async function removeDyn(did, mid, id, t) { const k=t==='edu'?'education':'service'; await set(ref(db,'weekly/'+did+'/'+state.currentWeekId+'/'+mid+'/'+k+'/'+id),null); loadFaithWeek(); }
 
-// ── 신앙관리 테이블에서 도장 찍기 ──
-async function applyStampFromTable(did, mid, el) {
+// ── 도장 찍기 ──
+async function applyStampFromTable(did, mid) {
   if (!isRegion()) return;
   if (!confirm('확인 도장을 찍을까요?')) return;
-  const rid = state.districtsCache[did]?.regionId || '';
-  const rName = state.regionsCache[rid]?.name || '';
-  const adminName = REGION_ADMIN_NAME[rName] || state.userNickname || '임원';
-  const stamp = { uid: state.currentUser.uid, name: adminName, timestamp: Date.now() };
+  const stamp = { uid: state.currentUser.uid, name: state.userNickname || '임원', timestamp: Date.now() };
   await set(ref(db, 'memberDetail/' + did + '/' + mid + '/managerStamp'), stamp);
+  await loadFaithWeek();
+  // 도장 찍기 애니메이션
+  const overlay = document.querySelector('.stamp-done-overlay[data-mid="'+mid+'"]');
+  if (overlay) overlay.classList.add('stamp-animate');
+}
+
+// ── 도장 취소 ──
+async function removeStampFromTable(did, mid) {
+  if (!isRegion()) return;
+  if (!confirm('도장을 취소할까요?')) return;
+  await remove(ref(db, 'memberDetail/' + did + '/' + mid + '/managerStamp'));
   loadFaithWeek();
 }
