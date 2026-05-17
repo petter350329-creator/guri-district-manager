@@ -78,4 +78,9 @@ export function applyRoleUI() {
   document.querySelectorAll('.region-only').forEach(el  => el.style.display = isRegion()   ? '' : 'none');
   document.querySelectorAll('.chairman-only').forEach(el=> el.style.display = isChairman() ? '' : 'none');
   document.querySelectorAll('.sa-only').forEach(el      => el.style.display = isSA()       ? '' : 'none');
+  // 구역장은 설정 탭을 간소화하게 보임
+  const settingsBody = document.querySelector('.settings-body');
+  if (settingsBody && state.userRole === 'district_leader') {
+    settingsBody.classList.add('leader-settings');
+  }
 }
