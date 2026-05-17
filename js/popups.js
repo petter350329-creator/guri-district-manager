@@ -31,7 +31,8 @@ export async function openWorshipPop(refEl, did, mid, wType, onDone) {
     + '<div class="pop-sec"><div class="pop-sec-label">사유출석</div><div class="pop-row">'
     + EXCUSE.map(t => '<button class="pop-btn' + isOn('excuse',t) + '" data-t="excuse" data-excuse="' + t + '">' + t + '</button>').join('')
     + '</div></div>'
-    + '<button class="pop-clear" id="pop-clear-btn">✕ 미출석</button>';
+    + '<button class="pop-clear" id="pop-absent-btn">✗ 미출석</button>'
+    + '<button class="pop-reset-btn" id="pop-reset-btn">↩ 초기화(미기록)</button>';
 
   pop.querySelectorAll('[data-t]').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -41,7 +42,11 @@ export async function openWorshipPop(refEl, did, mid, wType, onDone) {
       closePop(); if (onDone) onDone();
     });
   });
-  pop.querySelector('#pop-clear-btn').addEventListener('click', async () => {
+  pop.querySelector('#pop-absent-btn').addEventListener('click', async () => {
+    await set(ref(db, 'weekly/' + did + '/' + state.currentWeekId + '/' + mid + '/worship/' + wType), { type: 'absent' });
+    closePop(); if (onDone) onDone();
+  });
+  pop.querySelector('#pop-reset-btn').addEventListener('click', async () => {
     await set(ref(db, 'weekly/' + did + '/' + state.currentWeekId + '/' + mid + '/worship/' + wType), null);
     closePop(); if (onDone) onDone();
   });
