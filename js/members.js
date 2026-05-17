@@ -1,8 +1,9 @@
-import { db } from './config.js';
+import { db, state, canEdit } from './config.js';
 import { showToast } from './utils.js';
 import { ref, set, get, push, remove, update } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
 export async function openMemberModal(did) {
+  if (!canEdit()) { showToast('권한이 없습니다'); return; }
   if (!did) { showToast('구역을 먼저 선택해주세요'); return; }
   const snap = await get(ref(db, 'members/' + did));
   const members = snap.val() || {};
@@ -35,6 +36,7 @@ async function toggleActive(did, mid, cur) {
   openMemberModal(did);
 }
 async function deleteMember(did, mid) {
+  if (!canEdit()) { showToast('권한이 없습니다'); return; }
   if (!confirm('삭제할까요?')) return;
   await remove(ref(db, 'members/' + did + '/' + mid));
   showToast('삭제됐어요'); openMemberModal(did);
@@ -43,6 +45,7 @@ async function deleteMember(did, mid) {
 export function setupMemberModal() {
   window.closeMemberModal = () => document.getElementById('modal-member').classList.remove('show');
   window.addMember = async () => {
+    if (!canEdit()) { showToast('권한이 없습니다'); return; }
     const did   = document.getElementById('modal-member').dataset.did;
     const name  = document.getElementById('inp-member-name').value.trim();
     const phone = document.getElementById('inp-member-phone').value.trim();
