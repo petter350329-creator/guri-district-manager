@@ -4,7 +4,7 @@ import { initAuth, setupAuthButtons, applyRoleUI } from './auth.js';
 import { initFaithTab, loadFaithWeek }  from './faith.js';
 import { setupProfileButtons }          from './profile.js';
 import { setupMemberModal }             from './members.js';
-import { openUserMgmt, openAssignModal, openDistrictMgmt, setupSettingsButtons } from './settings.js';
+import { openUserMgmt, openAssignModal, openDistrictMgmt, openTransferMgmt, setupSettingsButtons } from './settings.js';
 
 // ── 초기화 ──
 state.currentWeekId  = getWeekId();
@@ -23,8 +23,8 @@ window.switchTab = (tab) => {
   document.getElementById('tab-' + tab)?.classList.add('active');
   document.querySelector('.tab-btn[data-tab="' + tab + '"]')?.classList.add('active');
   if (tab === 'faith') initFaithTab();
-  if (tab === 'evang') placeholder('evang-content','🌱','전도 관리');
-  if (tab === 'visit') placeholder('visit-content','🫂','심방 기록');
+  if (tab === 'evang') placeholder('evang-content','🌱','전도 현황');
+  if (tab === 'visit') placeholder('visit-content','🫂','심방 현황');
   if (tab === 'stats') placeholder('stats-content','📊','통계 · 대시보드');
 };
 function placeholder(id, icon, label) {
@@ -36,17 +36,26 @@ function placeholder(id, icon, label) {
 window.openUserMgmt     = openUserMgmt;
 window.openAssignModal  = openAssignModal;
 window.openDistrictMgmt = openDistrictMgmt;
+window.openTransferMgmt = openTransferMgmt;
 
 // ── 로그인 후 메인 진입 ──
 function enterMain() {
   applyRoleUI();
+  applyTabLabels();
   showScreen('main');
   switchTab('faith');
-  // 설정 탭 구역원 관리 버튼
-  document.getElementById('btn-member-settings')?.addEventListener('click', () => {
-    const did = state.userDistrictId || state.faithDistrictId || '';
-    import('./members.js').then(m => m.openMemberModal(did));
-  });
+}
+
+// ── 임원/회장 역할에 따른 탭 라벨 조정 ──
+function applyTabLabels() {
+  const role = state.userRole;
+  const faithBtn = document.querySelector('.tab-btn[data-tab="faith"] .tab-label');
+  if (faithBtn) {
+    if (role === 'district_leader') faithBtn.textContent = '신앙관리';
+    else faithBtn.textContent = '구역 신앙';
+  }
+  const statsBtn = document.querySelector('.tab-btn[data-tab="stats"] .tab-label');
+  if (statsBtn) statsBtn.textContent = '통계';
 }
 
 // ── 인증 시작 ──
@@ -54,7 +63,12 @@ initAuth(enterMain);
 
 // ── 모달 배경 클릭 닫기 ──
 document.addEventListener('click', e => {
-  ['modal-member','modal-users','modal-districts','modal-assign','modal-nickname','modal-listmgmt'].forEach(id => {
-    if (e.target === document.getElementById(id)) document.getElementById(id).classList.remove('show');
+  [
+    'modal-member','modal-users','modal-districts','modal-assign',
+    'modal-nickname','modal-listmgmt','modal-transfer-mgmt',
+    'modal-save-confirm','modal-transfer'
+  ].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && e.target === el) el.classList.remove('show');
   });
 });
