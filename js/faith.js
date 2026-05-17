@@ -68,18 +68,20 @@ export async function loadFaithWeek() {
   await loadDynLists(did);
 
   const prevWeekId = shiftWeek(state.currentWeekId, -1);
-  const [ms, ws, mths, pws, detailSnap] = await Promise.all([
+  const [ms, ws, mths, pws, detailSnap, wStampSnap] = await Promise.all([
     get(ref(db, 'members/' + did)),
     get(ref(db, 'weekly/' + did + '/' + state.currentWeekId)),
     get(ref(db, 'monthly/' + did + '/' + state.currentMonthId)),
     get(ref(db, 'weekly/' + did + '/' + prevWeekId)),
-    get(ref(db, 'memberDetail/' + did))
+    get(ref(db, 'memberDetail/' + did)),
+    get(ref(db, 'weeklyStamp/' + did + '/' + state.currentWeekId))
   ]);
   const members    = ms.val() || {};
   let   weekData   = ws.val() || {};
   const monthData  = mths.val() || {};
   const prevData   = pws.val() || {};
   const detailData = detailSnap.val() || {};
+  const weekStamp  = wStampSnap.val() || null;
 
   // 목표 자동 이월
   const carry = {};
@@ -109,11 +111,29 @@ export async function loadFaithWeek() {
   const backBtn   = (isRegion() && state.userRole !== 'district_leader')
     ? '<button class="icon-btn" id="btn-back-dist">← 목록</button>' : '';
 
+  // 상단 도장 버튼 빌드
+  function fmtStampDate(ts) {
+    const d = new Date(ts);
+    return d.getFullYear() + '.' + String(d.getMonth()+1).padStart(2,'0') + '.' + String(d.getDate()).padStart(2,'0');
+  }
+  const stampBtnHtml = isRegion()
+    ? (weekStamp
+        ? '<button class="stamp-week-btn stamp-week-done" id="btn-week-stamp">'
+          + '<span class="swb-label">임원 확인 ✓</span>'
+          + '<span class="swb-name">' + (weekStamp.name||'임원') + '</span>'
+          + '<span class="swb-date">' + fmtStampDate(weekStamp.timestamp) + '</span>'
+          + '</button>'
+        : '<button class="stamp-week-btn stamp-week-empty" id="btn-week-stamp">🔏 임원 확인</button>')
+    : (weekStamp
+        ? '<span class="stamp-week-badge">✓ ' + (weekStamp.name||'임원') + ' · ' + fmtStampDate(weekStamp.timestamp) + '</span>'
+        : '');
+
   let html =
     '<div class="faith-topbar">'
     + backBtn
     + '<div class="faith-title">' + (rName ? rName + ' · ' : '') + dName + '</div>'
     + '<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">'
+    + stampBtnHtml
     + '<button class="icon-btn" id="btn-prev-week">◀</button>'
     + '<button class="week-badge-btn" id="btn-week-pick">' + getWeekLabel(state.currentWeekId) + '</button>'
     + '<button class="icon-btn" id="btn-next-week"' + (isCW ? ' disabled' : '') + '>▶</button>'
@@ -150,6 +170,10 @@ export async function loadFaithWeek() {
   document.getElementById('btn-next-week')?.addEventListener('click', () => { const nw = shiftWeek(state.currentWeekId,1); if(nw<=getWeekId()){state.currentWeekId=nw;state.currentMonthId=monthFromWeek(nw);loadFaithWeek();} });
   document.getElementById('btn-week-pick')?.addEventListener('click', e => openWeekPicker(e.currentTarget, wk => { state.currentWeekId = wk; state.currentMonthId = monthFromWeek(wk); loadFaithWeek(); }));
   document.getElementById('btn-add-member')?.addEventListener('click', () => openMemberModal(did));
+  document.getElementById('btn-week-stamp')?.addEventListener('click', () => {
+    if (weekStamp) removeWeekStamp(did);
+    else applyWeekStamp(did);
+  });
   el.querySelectorAll('.mgmt-btn').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); openListMgmt(btn.dataset.mgmt, btn.dataset.did, loadFaithWeek); }));
 
   // tbody
@@ -199,32 +223,12 @@ export async function loadFaithWeek() {
       return '<button class="result-btn' + (on?' result-on r-'+r:'') + '" data-did="' + did + '" data-mid="' + mid + '" data-r="' + r + '">' + RESULT_EMOJI[r] + '</button>';
     }).join('');
 
-    // 결재 도장 — 오른쪽 위에 큼직하게
-    const stamp = detailData[mid]?.managerStamp;
-    const stampDate = stamp ? new Date(stamp.timestamp) : null;
-    const stampDateStr = stampDate
-      ? (stampDate.getMonth()+1) + '.' + stampDate.getDate()
-      : '';
-    const stampBadge = stamp
-      ? '<div class="stamp-overlay stamp-done-overlay'+(isRegion()?' stamp-cancellable':'')+'" data-did="'+did+'" data-mid="'+mid+'">'
-        + '<div style="font-size:.85rem;line-height:1;font-weight:900">✓</div>'
-        + '<div class="so-name">'+( stamp.name||'임원')+'</div>'
-        + '<div class="so-role">확인</div>'
-        + '<div class="so-date">'+stampDateStr+'</div>'
-        + '</div>'
-      : (isRegion()
-          ? '<div class="stamp-overlay stamp-empty-overlay" data-did="'+did+'" data-mid="'+mid+'">'
-            + '<div style="font-size:.75rem;line-height:1">未</div>'
-            + '<div class="so-role">미확인</div>'
-            + '</div>'
-          : '');
-
     const tr = document.createElement('tr');
     tr.className = 'faith-row';
     tr.innerHTML =
-      '<td class="col-name-td" style="position:relative;padding-right:'+(isRegion()?'52px':'4px')+'">'
+      '<td class="col-name-td">'
       + '<span class="member-name-cell" data-did="'+did+'" data-mid="'+mid+'" data-name="'+member.name+'">'+member.name+'</span>'
-      + spBadge + stampBadge + '</td>'
+      + spBadge + '</td>'
       + '<td class="col-worship-td" data-did="' + did + '" data-mid="' + mid + '" data-wtype="samil">' + wCell(wor.samil,'samil') + '</td>'
       + '<td class="col-worship-td sep-right" data-did="' + did + '" data-mid="' + mid + '" data-wtype="juil">' + wCell(wor.juil,'juil') + '</td>'
       + '<td class="col-tags-td" data-did="' + did + '" data-mid="' + mid + '" data-dtype="edu">' + eduBadges + (canEdit() ? '<span class="badge-add">+</span>' : '') + '</td>'
@@ -250,16 +254,6 @@ export async function loadFaithWeek() {
     const t = e.target;
     const nameCell = t.closest('.member-name-cell');
     if (nameCell) { openProfile(nameCell.dataset.did, nameCell.dataset.mid, nameCell.dataset.name); return; }
-    // 도장 overlay 클릭 — 찍기 / 취소
-    const stampEl = t.closest('.stamp-overlay[data-did]');
-    if (stampEl && isRegion()) {
-      if (stampEl.classList.contains('stamp-done-overlay')) {
-        removeStampFromTable(stampEl.dataset.did, stampEl.dataset.mid);
-      } else {
-        applyStampFromTable(stampEl.dataset.did, stampEl.dataset.mid, stampEl);
-      }
-      return;
-    }
     if (t.classList.contains('memo-icon')) { e.stopPropagation(); openMemoPop(t, t.dataset.did, t.dataset.mid, t.dataset.wtype, loadFaithWeek); return; }
     if (!canEdit()) return;
     const wTd = t.closest('.col-worship-td');
@@ -300,22 +294,36 @@ async function toggleExtra(did, mid, id)  { const p = 'monthly/'+did+'/'+state.c
 async function toggleResult(did, mid, r)  { const p = 'weekly/'+did+'/'+state.currentWeekId+'/'+mid+'/goal/prevResult'; const s=await get(ref(db,p)); await set(ref(db,p),s.val()===r?null:r); loadFaithWeek(); }
 async function removeDyn(did, mid, id, t) { const k=t==='edu'?'education':'service'; await set(ref(db,'weekly/'+did+'/'+state.currentWeekId+'/'+mid+'/'+k+'/'+id),null); loadFaithWeek(); }
 
-// ── 도장 찍기 ──
-async function applyStampFromTable(did, mid) {
+// ── 구역 주간 확인 도장 ──
+async function applyWeekStamp(did) {
   if (!isRegion()) return;
-  if (!confirm('확인 도장을 찍을까요?')) return;
-  const stamp = { uid: state.currentUser.uid, name: state.userNickname || '임원', timestamp: Date.now() };
-  await set(ref(db, 'memberDetail/' + did + '/' + mid + '/managerStamp'), stamp);
-  await loadFaithWeek();
-  // 도장 찍기 애니메이션
-  const overlay = document.querySelector('.stamp-done-overlay[data-mid="'+mid+'"]');
-  if (overlay) overlay.classList.add('stamp-animate');
+  if (!confirm('이번 주 구역을 확인하고 도장을 찍을까요?')) return;
+  const today = new Date();
+  const dateStr = today.getFullYear() + '.' + String(today.getMonth()+1).padStart(2,'0') + '.' + String(today.getDate()).padStart(2,'0');
+  const stamp = { uid: state.currentUser.uid, name: state.userNickname || '임원', timestamp: Date.now(), date: dateStr };
+  await set(ref(db, 'weeklyStamp/' + did + '/' + state.currentWeekId), stamp);
+  showStampSplash(stamp.name, dateStr);
+  setTimeout(() => loadFaithWeek(), 400);
 }
 
-// ── 도장 취소 ──
-async function removeStampFromTable(did, mid) {
+async function removeWeekStamp(did) {
   if (!isRegion()) return;
   if (!confirm('도장을 취소할까요?')) return;
-  await remove(ref(db, 'memberDetail/' + did + '/' + mid + '/managerStamp'));
+  await remove(ref(db, 'weeklyStamp/' + did + '/' + state.currentWeekId));
   loadFaithWeek();
+}
+
+function showStampSplash(name, dateStr) {
+  const existing = document.getElementById('stamp-splash');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'stamp-splash';
+  el.innerHTML =
+    '<div class="stamp-splash-inner">'
+    + '<div class="ss-date">' + dateStr + '</div>'
+    + '<div class="ss-check">임원 확인</div>'
+    + '<div class="ss-name">' + name + '</div>'
+    + '</div>';
+  document.body.appendChild(el);
+  setTimeout(() => { if (el.parentNode) el.remove(); }, 1600);
 }
