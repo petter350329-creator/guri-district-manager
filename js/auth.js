@@ -26,6 +26,12 @@ export function initAuth(onLogin) {
             role: d.role, regionId: d.regionId||null, districtId: d.districtId||null, createdAt: Date.now()
           });
         } else {
+          // 지역 목록을 DB에서 동적 로드
+          const regSnap = await get(ref(db, 'regions'));
+          const regions = regSnap.val() || {};
+          const sel = document.getElementById('reg-region-sel');
+          sel.innerHTML = '<option value="">소속 지역 선택 *</option>'
+            + Object.entries(regions).map(([rid, r]) => `<option value="${rid}">${r.name}</option>`).join('');
           document.getElementById('reg-email').textContent = user.email;
           showScreen('register'); return;
         }
