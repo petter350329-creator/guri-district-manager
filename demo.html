@@ -104,6 +104,16 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .rel-friend-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px}
 /* 빈 상태 */
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;color:var(--muted);text-align:center;padding:20px;font-size:.85rem;line-height:1.8}
+.faith-stamp-box{display:flex;flex-direction:column;align-items:center;justify-content:center;width:56px;height:60px;border-radius:8px;border:2.5px solid;flex-shrink:0;padding:3px;user-select:none;transition:all .2s}
+.faith-stamp-done{border-color:#f87171;background:rgba(248,113,113,.08);color:#f87171;transform:rotate(-5deg);cursor:default}
+.faith-stamp-done .fs-icon{font-size:.95rem;line-height:1}
+.faith-stamp-done .fs-name{font-size:.62rem;font-weight:900;letter-spacing:-.02em;margin-top:1px}
+.faith-stamp-done .fs-role{font-size:.5rem;color:rgba(248,113,113,.75);letter-spacing:.03em}
+.faith-stamp-done .fs-date{font-size:.44rem;color:rgba(248,113,113,.6);margin-top:1px}
+.faith-stamp-empty{border-color:rgba(120,120,140,.25);background:transparent;color:rgba(120,120,140,.3);cursor:pointer}
+.faith-stamp-empty:hover{border-color:rgba(248,113,113,.45);color:rgba(248,113,113,.45);background:rgba(248,113,113,.04)}
+.faith-stamp-empty .fs-icon{font-size:1rem;line-height:1}
+.faith-stamp-empty .fs-role{font-size:.52rem;margin-top:2px}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 </style>
 </head>
@@ -294,6 +304,32 @@ function renderFaith() {
     + '<th style="min-width:140px;text-align:left;padding-left:6px">이번주 목표</th>'
     + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
     + '<div class="table-hint"><span style="background:rgba(246,169,53,.15);color:var(--monthly);padding:1px 5px;border-radius:3px;font-size:.67rem">십일·건축</span> 월간 유지 &nbsp;|&nbsp; 이름 클릭 → 상세카드</div>';
+}
+
+let regionStamped = false;
+
+function getStampHtml() {
+  if (regionStamped) {
+    const now = new Date();
+    const ds = now.getFullYear() + '.' + String(now.getMonth()+1).padStart(2,'0') + '.' + String(now.getDate()).padStart(2,'0');
+    return '<div class="faith-stamp-box faith-stamp-done" title="고현정 임원 확인">'
+      + '<div class="fs-icon">🌸</div>'
+      + '<div class="fs-name">고현정</div>'
+      + '<div class="fs-role">임원확인</div>'
+      + '<div class="fs-date">' + ds + '</div>'
+      + '</div>';
+  }
+  return '<div class="faith-stamp-box faith-stamp-empty" onclick="doRegionStamp()" title="확인 도장 찍기">'
+    + '<div class="fs-icon">🔲</div>'
+    + '<div class="fs-role">미확인</div>'
+    + '</div>';
+}
+
+function doRegionStamp() {
+  if (regionStamped) return;
+  if (!confirm('고현정 임원으로 이번 주 신앙관리를 확인하시겠어요?')) return;
+  regionStamped = true;
+  renderFaith();
 }
 
 function doStamp(mid) {
