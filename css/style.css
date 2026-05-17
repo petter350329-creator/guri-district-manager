@@ -160,3 +160,38 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 #toast.show{transform:translateX(-50%) translateY(0)}
 @media(min-width:1025px){#toast{bottom:24px}}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── 신앙관리 결재 배지 ── */
+.stamp-mini{display:block;font-size:.55rem;border-radius:3px;padding:1px 5px;margin-top:2px;white-space:nowrap}
+.stamp-mini-done{background:rgba(248,113,113,.15);color:#f87171;border:0.5px solid rgba(248,113,113,.4)}
+.stamp-mini-empty{background:rgba(120,120,140,.1);color:rgba(120,120,140,.4);border:0.5px solid rgba(120,120,140,.2)}
+
+/* ── 사진 업로드 ── */
+.spirit-photo-row{display:flex;gap:14px;align-items:flex-start}
+.photo-upload-wrap{flex-shrink:0;display:flex;flex-direction:column;align-items:center}
+.photo-label{cursor:pointer}
+.photo-box{width:80px;height:80px;border-radius:10px;border:1.5px dashed var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center;transition:border-color .2s}
+.photo-box:hover{border-color:var(--accent)}
+.photo-placeholder{display:flex;flex-direction:column;align-items:center;color:var(--muted);font-size:1.3rem;text-align:center}
+
+/* ── 지체관계 ── */
+.rel-group{margin-bottom:4px}
+.rel-group-title{font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em}
+.rel-friend-row{display:flex;gap:5px;margin-bottom:5px;flex-wrap:wrap}
+.rel-role-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px}
+.rel-role-label{font-size:.72rem;font-weight:700;color:var(--accent2);width:40px;flex-shrink:0;padding-top:8px;text-align:right}
+.rel-role-fields{display:flex;flex:1;gap:5px;flex-wrap:wrap}
+.rel-input{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:5px 8px;color:var(--text);font-family:inherit;font-size:.75rem;outline:none;min-width:0;flex:1}
+.rel-input:focus{border-color:var(--accent)}.rel-input[readonly]{background:transparent;border-color:transparent;color:var(--muted)}
+
+/* ── 신앙관리 도장 (stamp) — 발랄한 버전 ── */
+.stamp-box{display:flex;flex-direction:column;align-items:center;justify-content:center;width:58px;height:62px;border-radius:8px;border:2.5px solid;flex-shrink:0;user-select:none;padding:3px;position:relative}
+.stamp-done{border-color:#f87171;background:rgba(248,113,113,.07);color:#f87171;transform:rotate(-4deg)}
+.stamp-done .stamp-icon{font-size:.95rem;line-height:1}
+.stamp-done .stamp-name{font-size:.6rem;font-weight:900;margin-top:1px;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.02em}
+.stamp-done .stamp-label{font-size:.52rem;color:rgba(248,113,113,.75);letter-spacing:.03em}
+.stamp-done .stamp-date{font-size:.46rem;color:rgba(248,113,113,.6);margin-top:1px}
+.stamp-empty{border-color:rgba(120,120,140,.25);background:transparent;color:rgba(120,120,140,.25)}
+.stamp-empty .stamp-mark{font-size:.8rem;font-weight:700}
+.stamp-empty .stamp-label{font-size:.5rem;margin-top:2px}
+.stamp-clickable{cursor:pointer;transition:all .2s}.stamp-clickable:hover{border-color:rgba(248,113,113,.5);color:rgba(248,113,113,.5)}
