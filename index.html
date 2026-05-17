@@ -27,10 +27,6 @@
     <input type="text" id="reg-name" placeholder="이름 (필수)">
     <select id="reg-region-sel">
       <option value="">소속 지역 선택 *</option>
-      <option value="구리">구리</option>
-      <option value="남양주">남양주</option>
-      <option value="창조">창조</option>
-      <option value="회장단">회장단</option>
     </select>
     <p style="font-size:.7rem;color:var(--muted);margin-bottom:10px;text-align:left">모든 신청자는 구역장으로 등록됩니다.</p>
     <button class="btn btn-primary" style="width:100%;margin-top:6px" onclick="submitRegister()">신청하기</button>
@@ -80,6 +76,9 @@
             </div>
           </div>
           <div class="settings-section">
+            <div class="settings-item" onclick="openNickModal()">
+              <span class="si-icon">✏️</span><span class="si-label">닉네임 변경</span><span class="si-arr">›</span>
+            </div>
             <div class="settings-item settings-danger" onclick="doLogout()">
               <span class="si-icon">🚪</span><span class="si-label">로그아웃</span>
             </div>
