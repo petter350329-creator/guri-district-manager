@@ -47,11 +47,12 @@ function renderDistrictPicker(el, filterRid) {
   });
 }
 
-async function loadDynLists(did) {
+async function loadDynLists(_did) {
+  // 교육/봉사/기타헌금은 전역 공유 (지역 구분 없음)
   const [es, ss, xs] = await Promise.all([
-    get(ref(db, 'eduList/' + did)),
-    get(ref(db, 'serviceList/' + did)),
-    get(ref(db, 'extraOfferings/' + did))
+    get(ref(db, 'globalEduList')),
+    get(ref(db, 'globalServiceList')),
+    get(ref(db, 'globalExtraOfferings'))
   ]);
   state.eduListCache         = es.val() || {};
   state.serviceListCache     = ss.val() || {};
@@ -149,7 +150,7 @@ export async function loadFaithWeek() {
   document.getElementById('btn-next-week')?.addEventListener('click', () => { const nw = shiftWeek(state.currentWeekId,1); if(nw<=getWeekId()){state.currentWeekId=nw;state.currentMonthId=monthFromWeek(nw);loadFaithWeek();} });
   document.getElementById('btn-week-pick')?.addEventListener('click', e => openWeekPicker(e.currentTarget, wk => { state.currentWeekId = wk; state.currentMonthId = monthFromWeek(wk); loadFaithWeek(); }));
   document.getElementById('btn-add-member')?.addEventListener('click', () => openMemberModal(did));
-  el.querySelectorAll('.mgmt-btn').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); openListMgmt(btn.dataset.mgmt, btn.dataset.did); }));
+  el.querySelectorAll('.mgmt-btn').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); openListMgmt(btn.dataset.mgmt, btn.dataset.did, loadFaithWeek); }));
 
   // tbody
   const tbody = document.getElementById('faith-tbody');
@@ -177,7 +178,8 @@ export async function loadFaithWeek() {
 
     // 예배 셀
     function wCell(data, wType) {
-      if (!data || !data.type) return '<span class="w-none">—</span>';
+      if (!data || !data.type) return '<span class="w-none w-unrecorded">—</span>';
+      if (data.type === 'absent') return '<span class="w-absent">✗</span>';
       const map = { present:{c:'var(--success)',s:'●'}, zoom:{c:'var(--accent)',s:'Z'}, excuse:{c:'var(--monthly)',s:'사'} };
       const cfg = map[data.type] || {c:'var(--muted)',s:'?'};
       const sub = data.time || data.excuseType || '';
@@ -191,9 +193,10 @@ export async function loadFaithWeek() {
       .map(id => '<span class="item-badge" data-did="' + did + '" data-mid="' + mid + '" data-id="' + id + '" data-dtype="edu">' + (state.eduListCache[id]?.name||'?') + '</span>').join('');
     const svcBadges = Object.keys(svcDone).filter(id => svcDone[id])
       .map(id => '<span class="item-badge svc-badge" data-did="' + did + '" data-mid="' + mid + '" data-id="' + id + '" data-dtype="service">' + (state.serviceListCache[id]?.name||'?') + '</span>').join('');
+    const RESULT_EMOJI = { '○':'✅', '△':'🔸', '✕':'❌' };
     const rBtns = ['○','△','✕'].map(r => {
       const on = goal.prevResult === r;
-      return '<button class="result-btn' + (on?' result-on r-'+r:'') + '" data-did="' + did + '" data-mid="' + mid + '" data-r="' + r + '">' + r + '</button>';
+      return '<button class="result-btn' + (on?' result-on r-'+r:'') + '" data-did="' + did + '" data-mid="' + mid + '" data-r="' + r + '">' + RESULT_EMOJI[r] + '</button>';
     }).join('');
 
     const tr = document.createElement('tr');
@@ -204,10 +207,10 @@ export async function loadFaithWeek() {
       + '<td class="col-worship-td sep-right" data-did="' + did + '" data-mid="' + mid + '" data-wtype="juil">' + wCell(wor.juil,'juil') + '</td>'
       + '<td class="col-tags-td" data-did="' + did + '" data-mid="' + mid + '" data-dtype="edu">' + eduBadges + (canEdit() ? '<span class="badge-add">+</span>' : '') + '</td>'
       + '<td class="col-tags-td sep-right" data-did="' + did + '" data-mid="' + mid + '" data-dtype="service">' + svcBadges + (canEdit() ? '<span class="badge-add">+</span>' : '') + '</td>'
-      + '<td class="col-chk-td' + (w.offering?.weekly?' checked':'') + '" data-did="' + did + '" data-mid="' + mid + '" data-action="wkly">' + (w.offering?.weekly?'✓':'') + '</td>'
-      + '<td class="col-chk-td col-monthly-td' + (mOff.tithe?' checked':'') + '" data-did="' + did + '" data-mid="' + mid + '" data-action="tithe">' + (mOff.tithe?'✓':'') + '</td>'
-      + '<td class="col-chk-td col-monthly-td sep-right' + (mOff.construction?' checked':'') + '" data-did="' + did + '" data-mid="' + mid + '" data-action="construction">' + (mOff.construction?'✓':'') + '</td>'
-      + extraCols.map(([id]) => '<td class="col-chk-td col-extra-td' + (mOff.extras?.[id]?' checked':'') + '" data-did="' + did + '" data-mid="' + mid + '" data-action="extra" data-eid="' + id + '">' + (mOff.extras?.[id]?'✓':'') + '</td>').join('')
+      + '<td class="col-chk-td' + (w.offering?.weekly?' checked':'') + '" data-did="' + did + '" data-mid="' + mid + '" data-action="wkly">' + (w.offering?.weekly?'✓':'<span class="chk-dot">·</span>') + '</td>'
+      + '<td class="col-chk-td col-monthly-td' + (mOff.tithe?' checked':'') + '" data-did="' + did + '" data-mid="' + mid + '" data-action="tithe">' + (mOff.tithe?'✓':'<span class="chk-dot">·</span>') + '</td>'
+      + '<td class="col-chk-td col-monthly-td sep-right' + (mOff.construction?' checked':'') + '" data-did="' + did + '" data-mid="' + mid + '" data-action="construction">' + (mOff.construction?'✓':'<span class="chk-dot">·</span>') + '</td>'
+      + extraCols.map(([id]) => '<td class="col-chk-td col-extra-td' + (mOff.extras?.[id]?' checked':'') + '" data-did="' + did + '" data-mid="' + mid + '" data-action="extra" data-eid="' + id + '">' + (mOff.extras?.[id]?'✓':'<span class="chk-dot">·</span>') + '</td>').join('')
       + '<td class="col-prev-goal-td">'
         + (goal.prevText ? '<div style="font-size:.72rem;color:var(--muted)">' + goal.prevText + '</div>' : '')
         + (goal.prevLeaderNote ? '<div style="font-size:.67rem;color:#a78bfa;margin-top:2px">💬 ' + goal.prevLeaderNote + '</div>' : '')
