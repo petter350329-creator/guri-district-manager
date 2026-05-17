@@ -283,8 +283,15 @@ function showSaveConfirm() {
 
 async function loadTransferOptions() {
   const el = document.getElementById('sel-transfer-did');
+  const { isRegion } = await import('./config.js').catch(() => ({ isRegion: () => false }));
+  // 구역장은 같은 지역 구역만, 임원 이상은 전체
+  const myRegionId = state.userRegionId;
   const opts = Object.entries(state.districtsCache)
     .filter(([did]) => did !== profileDid)
+    .filter(([, d]) => {
+      if (state.userRole === 'district_leader') return d.regionId === myRegionId;
+      return true;
+    })
     .map(([did, d]) => {
       const rn = state.regionsCache[d.regionId]?.name || '';
       return '<option value="' + did + '">' + (rn ? rn + ' · ' : '') + d.name + '</option>';
