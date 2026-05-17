@@ -166,6 +166,18 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .stamp-mini-done{background:rgba(248,113,113,.15);color:#f87171;border:0.5px solid rgba(248,113,113,.4)}
 .stamp-mini-empty{background:rgba(120,120,140,.1);color:rgba(120,120,140,.4);border:0.5px solid rgba(120,120,140,.2)}
 
+/* ── 신앙관리 테이블 도장 overlay ── */
+.stamp-overlay{position:absolute;top:4px;right:4px;width:46px;height:46px;border-radius:50%;border:2.5px solid;display:flex;flex-direction:column;align-items:center;justify-content:center;user-select:none;line-height:1;text-align:center;padding:2px;z-index:2}
+.stamp-done-overlay{border-color:#f87171;color:#f87171;background:rgba(248,113,113,.09);transform:rotate(-8deg)}
+.stamp-done-overlay.stamp-cancellable{cursor:pointer}.stamp-done-overlay.stamp-cancellable:hover{background:rgba(248,113,113,.2)}
+.stamp-empty-overlay{border-color:rgba(120,120,140,.28);color:rgba(120,120,140,.38);background:transparent;cursor:pointer;transition:all .2s}
+.stamp-empty-overlay:hover{border-color:rgba(248,113,113,.55);color:rgba(248,113,113,.55);background:rgba(248,113,113,.06)}
+.so-name{font-size:.5rem;font-weight:900;letter-spacing:-.02em;max-width:42px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.so-role{font-size:.44rem;opacity:.75}
+.so-date{font-size:.42rem;opacity:.6}
+@keyframes stamp-hit{0%{transform:rotate(-8deg) scale(3.2);opacity:0}55%{transform:rotate(-8deg) scale(0.85);opacity:1}75%{transform:rotate(-8deg) scale(1.08)}100%{transform:rotate(-8deg) scale(1);opacity:1}}
+.stamp-animate{animation:stamp-hit .45s cubic-bezier(.36,.07,.19,.97) both}
+
 /* ── 사진 업로드 ── */
 .spirit-photo-row{display:flex;gap:14px;align-items:flex-start}
 .photo-upload-wrap{flex-shrink:0;display:flex;flex-direction:column;align-items:center}
