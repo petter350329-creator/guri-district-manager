@@ -11,15 +11,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx);
 .screen{display:none;flex-direction:column;height:100vh;overflow:hidden}
 .screen.active{display:flex}
 
-/* 헤더 */
 .hdr{background:linear-gradient(135deg,#1a1d27,#0f1117);border-bottom:1px solid var(--bd);padding:11px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
 .logo{width:30px;height:30px;background:linear-gradient(135deg,var(--ac),var(--ac2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
 .hdr h1{font-size:.92rem;font-weight:600}
-.hdr-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.hdr-r{margin-left:auto;display:flex;align-items:center;gap:8px}
 .demo-badge{background:rgba(246,169,53,.2);color:var(--mn);border:1px solid rgba(246,169,53,.3);border-radius:6px;padding:3px 9px;font-size:.68rem;font-weight:700}
-.role-tag{font-size:.72rem;color:var(--mu)}
-
-/* 탭 */
 .main-body{flex:1;overflow-y:auto;min-height:0}
 .tab-pane{display:none}.tab-pane.active{display:block}
 .tab-bar{display:flex;border-top:1px solid var(--bd);background:var(--sf);flex-shrink:0;padding-bottom:env(safe-area-inset-bottom,0)}
@@ -29,123 +25,130 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx);
 
 /* 로그인 */
 #screen-login{height:100vh;align-items:center;justify-content:center;background:var(--bg);overflow-y:auto}
-.login-box{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:36px 28px;text-align:center;width:320px;max-width:90vw;margin:20px}
-.login-box h2{font-size:1.2rem;font-weight:700;margin-bottom:6px}
-.login-box p{color:var(--mu);font-size:.8rem;margin-bottom:24px;line-height:1.7}
-.role-select-row{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
-.role-opt{padding:11px 16px;border:1.5px solid var(--bd);border-radius:8px;cursor:pointer;font-size:.83rem;text-align:left;background:var(--sf2);color:var(--tx);transition:all .18s;display:flex;align-items:center;gap:10px}
-.role-opt:hover{border-color:var(--ac);background:rgba(108,143,255,.08)}
-.role-opt.selected{border-color:var(--ac);background:rgba(108,143,255,.12);color:var(--ac);font-weight:700}
-.role-icon{font-size:1.2rem;width:28px;text-align:center}
-.role-desc{font-size:.72rem;color:var(--mu);display:block;margin-top:2px;font-weight:400}
+.login-box{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:32px 24px;text-align:center;width:320px;max-width:92vw;margin:20px}
+.role-opt{padding:11px 14px;border:1.5px solid var(--bd);border-radius:8px;cursor:pointer;font-size:.83rem;text-align:left;background:var(--sf2);color:var(--tx);transition:all .18s;display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.role-opt:hover,.role-opt.sel{border-color:var(--ac);background:rgba(108,143,255,.1);color:var(--ac);font-weight:700}
+.role-desc{font-size:.7rem;color:var(--mu);display:block;font-weight:400;margin-top:2px}
 .btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:8px;border:none;font-family:inherit;font-size:.83rem;font-weight:600;cursor:pointer}
-.btn-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;width:100%}
-.btn-ghost{background:transparent;border:1px solid var(--bd);color:var(--mu)}
-.btn-sm{padding:5px 10px;font-size:.75rem;border-radius:6px;border:none;cursor:pointer}
+.btn-p{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;width:100%}
+.btn-g{background:transparent;border:1px solid var(--bd);color:var(--mu)}
+.btn-s{padding:5px 10px;font-size:.75rem;border-radius:6px;border:none;cursor:pointer}
 
 /* 신앙관리 */
-.faith-topbar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--bd);background:var(--sf);flex-wrap:wrap;position:sticky;top:0;z-index:5}
-.faith-title{font-size:.9rem;font-weight:600;flex:1}
-.week-badge{font-size:.72rem;color:var(--mu);background:var(--sf2);padding:4px 10px;border-radius:5px;border:.5px solid var(--bd)}
+.faith-topbar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--bd);background:var(--sf);flex-wrap:nowrap;position:sticky;top:0;z-index:5}
+.faith-title{font-size:.9rem;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.week-badge{font-size:.7rem;color:var(--mu);background:var(--sf2);padding:3px 8px;border-radius:5px;border:.5px solid var(--bd);white-space:nowrap;flex-shrink:0}
 .table-wrap{overflow-x:auto}
-.faith-table{width:100%;border-collapse:collapse;font-size:.78rem}
-.faith-table th{font-size:.65rem;font-weight:700;padding:5px 4px;border-bottom:.5px solid var(--bd);text-align:center;position:sticky;top:0;z-index:2;white-space:nowrap;background:var(--sf);color:var(--mu)}
-.faith-table th.sh{background:#1a2235;color:#85b7eb}
-.faith-row{border-bottom:.5px solid var(--bd)}.faith-row:hover{background:rgba(108,143,255,.03)}
-.col-name{padding:6px 4px 6px 10px;white-space:nowrap;cursor:pointer;min-width:72px}
-.mname{font-weight:600;font-size:.82rem;color:var(--tx);display:block}
-.mname:hover{color:var(--ac);text-decoration:underline}
-.sp-badge{display:block;border-radius:3px;padding:1px 5px;font-size:.56rem;margin-top:1px;white-space:nowrap;border:0.5px solid}
-.stamp-mini{display:block;font-size:.54rem;border-radius:3px;padding:1px 5px;margin-top:2px;white-space:nowrap}
-.sm-done{background:rgba(248,113,113,.15);color:#f87171;border:.5px solid rgba(248,113,113,.4)}
-.sm-empty{background:rgba(120,120,140,.1);color:rgba(120,120,140,.4);border:.5px solid rgba(120,120,140,.2)}
-.wc{text-align:center;padding:5px 2px;cursor:pointer;min-width:36px}
-.wc:hover{background:rgba(108,143,255,.08)}
+.ft{width:100%;border-collapse:collapse;font-size:.78rem}
+.ft th{font-size:.65rem;font-weight:700;padding:5px 4px;border-bottom:.5px solid var(--bd);text-align:center;position:sticky;top:0;z-index:2;white-space:nowrap;background:var(--sf);color:var(--mu)}
+.ft th.sh{background:#1a2235;color:#85b7eb}
+.fr{border-bottom:.5px solid var(--bd)}.fr:hover{background:rgba(108,143,255,.03)}
+.col-n{padding:6px 4px 6px 10px;white-space:nowrap;cursor:pointer;min-width:72px}
+.mn{font-weight:600;font-size:.82rem;color:var(--tx);display:block}.mn:hover{color:var(--ac);text-decoration:underline}
+.sp-badge{display:block;border-radius:3px;padding:1px 5px;font-size:.56rem;margin-top:1px;white-space:nowrap;border:.5px solid}
+.sm{display:block;font-size:.54rem;border-radius:3px;padding:1px 5px;margin-top:2px;white-space:nowrap}
+.sm-on{background:rgba(248,113,113,.15);color:#f87171;border:.5px solid rgba(248,113,113,.4)}
+.sm-off{background:rgba(120,120,140,.1);color:rgba(120,120,140,.4);border:.5px solid rgba(120,120,140,.2);cursor:pointer}
+.wc{text-align:center;padding:5px 2px;cursor:pointer;min-width:40px}.wc:hover{background:rgba(108,143,255,.08)}
+.wc-val{font-size:.78rem}.wc-sub{font-size:.52rem;opacity:.75;display:block;margin-top:1px}
 .tags-td{padding:3px 5px;min-width:90px;cursor:pointer}.tags-td:hover{background:rgba(108,143,255,.06)}
 .badge{display:inline-block;border-radius:4px;padding:1px 5px;font-size:.65rem;margin:1px}
-.badge-edu{background:rgba(74,222,128,.15);color:var(--ok);border:1px solid rgba(74,222,128,.3)}
-.badge-svc{background:rgba(246,169,53,.15);color:var(--mn);border:1px solid rgba(246,169,53,.3)}
-.badge-add{color:rgba(255,255,255,.2);font-size:.8rem;display:block;text-align:center}
-.chk-td{text-align:center;padding:6px 2px;width:30px;cursor:pointer}.chk-td:hover{background:rgba(108,143,255,.06)}
-.chk-on{color:var(--ac);font-weight:700}.chk-m{color:var(--mn)!important}
+.b-edu{background:rgba(74,222,128,.15);color:var(--ok);border:1px solid rgba(74,222,128,.3)}
+.b-svc{background:rgba(246,169,53,.15);color:var(--mn);border:1px solid rgba(246,169,53,.3)}
+.b-add{color:rgba(255,255,255,.2);font-size:.8rem;display:block;text-align:center}
+.chk{text-align:center;padding:6px 2px;width:30px;cursor:pointer}.chk:hover{background:rgba(108,143,255,.06)}
+.chk-a{color:var(--ac);font-weight:700}.chk-m{color:var(--mn)!important}
 .dot{color:rgba(255,255,255,.15);font-size:.9rem}
 .res-td{text-align:center;padding:3px 4px;white-space:nowrap}
-.rbtn{background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:3px 5px;font-size:1.1rem;line-height:1;cursor:pointer;opacity:.3;margin:1px}
-.rbtn:hover{opacity:.7}.rbtn.ron{opacity:1}
+.rb{background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:3px 5px;font-size:1.1rem;line-height:1;cursor:pointer;opacity:.3;margin:1px;transition:opacity .15s}
+.rb:hover{opacity:.7}.rb.ron{opacity:1}
 .goal-td{padding:3px 6px;min-width:120px}
-.goal-inp{width:100%;background:transparent;border:none;border-bottom:1px solid transparent;color:var(--tx);font-family:inherit;font-size:.75rem;padding:3px 2px;outline:none}
-.goal-inp:focus{border-bottom-color:var(--ac)}
-.goal-inp::placeholder{color:rgba(255,255,255,.2)}
-.advisor-inp{color:#a78bfa!important}.advisor-inp::placeholder{color:rgba(167,139,250,.3)!important}
-.prev-td{padding:3px 6px;min-width:100px;font-size:.72rem;color:var(--mu)}
+.gi{width:100%;background:transparent;border:none;border-bottom:1px solid transparent;color:var(--tx);font-family:inherit;font-size:.75rem;padding:3px 2px;outline:none}
+.gi:focus{border-bottom-color:var(--ac)}.gi::placeholder{color:rgba(255,255,255,.2)}
+.gi-adv{color:#a78bfa!important}.gi-adv::placeholder{color:rgba(167,139,250,.3)!important}
+.prev-td{padding:3px 6px;min-width:90px;font-size:.72rem;color:var(--mu)}
 .sep{border-right:1px solid rgba(255,255,255,.07)!important}
 .hint{padding:5px 14px;font-size:.67rem;color:var(--mu);background:var(--sf);border-top:.5px solid var(--bd)}
 
 /* 도장 */
-.faith-stamp{display:flex;flex-direction:column;align-items:center;justify-content:center;width:54px;height:58px;border-radius:8px;border:2.5px solid;flex-shrink:0;padding:3px;user-select:none;transition:all .2s;cursor:pointer}
-.stamp-done{border-color:#f87171;background:rgba(248,113,113,.08);color:#f87171;transform:rotate(-5deg);cursor:default}
-.stamp-done .si{font-size:.9rem;line-height:1}.stamp-done .sn{font-size:.6rem;font-weight:900;letter-spacing:-.02em;margin-top:1px}
-.stamp-done .sr{font-size:.48rem;color:rgba(248,113,113,.75);letter-spacing:.04em}.stamp-done .sd{font-size:.44rem;color:rgba(248,113,113,.6);margin-top:1px}
-.stamp-empty{border-color:rgba(120,120,140,.25);color:rgba(120,120,140,.3)}.stamp-empty:hover{border-color:rgba(248,113,113,.45);color:rgba(248,113,113,.45);background:rgba(248,113,113,.04)}
-.stamp-empty .si{font-size:.95rem;line-height:1}.stamp-empty .sr{font-size:.5rem;margin-top:2px}
+.fstamp{display:flex;flex-direction:column;align-items:center;justify-content:center;width:54px;height:58px;border-radius:8px;border:2.5px solid;flex-shrink:0;padding:3px;user-select:none;transition:all .2s}
+.fstamp-on{border-color:#f87171;background:rgba(248,113,113,.08);color:#f87171;transform:rotate(-5deg)}
+.fstamp-on .fsi{font-size:.88rem;line-height:1}.fstamp-on .fsn{font-size:.6rem;font-weight:900;letter-spacing:-.02em;margin-top:1px}
+.fstamp-on .fsr{font-size:.48rem;color:rgba(248,113,113,.75);letter-spacing:.04em}.fstamp-on .fsd{font-size:.44rem;color:rgba(248,113,113,.6);margin-top:1px}
+.fstamp-off{border-color:rgba(120,120,140,.25);color:rgba(120,120,140,.3);cursor:pointer}
+.fstamp-off:hover{border-color:rgba(248,113,113,.45);color:rgba(248,113,113,.45);background:rgba(248,113,113,.04)}
+.fstamp-off .fsi{font-size:.95rem;line-height:1}.fstamp-off .fsr{font-size:.5rem;margin-top:2px}
 
-/* 팝업 */
+/* 팝업 (바텀시트) */
 .pop-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;align-items:flex-end;justify-content:center}
 .pop-bg.show{display:flex}
-.pop{background:var(--sf);border-radius:16px 16px 0 0;padding:16px;width:100%;max-width:480px;animation:slideUp .2s ease}
-@keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
-.pop-title{font-size:.78rem;font-weight:700;color:var(--mu);margin-bottom:10px;text-align:center}
-.pop-btns{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-.pop-btn{background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:8px 14px;font-family:inherit;font-size:.82rem;color:var(--tx);cursor:pointer;min-width:80px;text-align:center}
+.pop{background:var(--sf);border-radius:16px 16px 0 0;padding:16px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;animation:su .2s ease}
+@keyframes su{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+.pop-title{font-size:.82rem;font-weight:700;color:var(--mu);margin-bottom:12px;text-align:center;letter-spacing:.04em}
+.pop-sec{margin-bottom:12px}
+.pop-sec-label{font-size:.68rem;font-weight:700;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em}
+.pop-row{display:flex;flex-wrap:wrap;gap:6px}
+.pop-btn{background:var(--sf2);border:1px solid var(--bd);border-radius:7px;padding:7px 13px;font-family:inherit;font-size:.82rem;color:var(--tx);cursor:pointer;transition:all .15s}
 .pop-btn:hover{border-color:var(--ac);background:rgba(108,143,255,.1)}
-.pop-btn.clear{color:var(--dg);border-color:rgba(248,113,113,.3)}
-.pop-btn.absent{color:var(--dg);background:rgba(248,113,113,.08)}
-.pop-btn.reset{color:var(--mu);font-size:.75rem}
-.pop-check-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto;margin-bottom:12px}
-.pop-check-item{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--sf2);border-radius:7px;cursor:pointer;border:1px solid transparent}
-.pop-check-item.on{border-color:var(--ac);background:rgba(108,143,255,.1)}
-.pop-check-icon{width:18px;height:18px;border:1.5px solid var(--bd);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0}
-.pop-check-item.on .pop-check-icon{background:var(--ac);border-color:var(--ac);color:#fff}
-.pop-close{display:block;width:100%;padding:9px;background:transparent;border:1px solid var(--bd);border-radius:7px;color:var(--mu);font-family:inherit;font-size:.8rem;cursor:pointer;margin-top:8px}
+.pop-on{background:rgba(108,143,255,.2)!important;border-color:var(--ac)!important;color:var(--ac)!important;font-weight:700}
+.pop-present-on{background:rgba(74,222,128,.15)!important;border-color:var(--ok)!important;color:var(--ok)!important;font-weight:700}
+.pop-zoom-on{background:rgba(108,143,255,.15)!important;border-color:var(--ac)!important;color:var(--ac)!important;font-weight:700}
+.pop-excuse-on{background:rgba(246,169,53,.15)!important;border-color:var(--mn)!important;color:var(--mn)!important;font-weight:700}
+.pop-absent{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:7px;padding:8px;font-family:inherit;font-size:.82rem;color:var(--dg);cursor:pointer;width:100%;margin-bottom:5px}
+.pop-reset{background:transparent;border:1px solid rgba(120,120,140,.2);border-radius:7px;padding:7px;font-family:inherit;font-size:.75rem;color:var(--mu);cursor:pointer;width:100%;margin-bottom:8px}
+.pop-close{display:block;width:100%;padding:9px;background:transparent;border:1px solid var(--bd);border-radius:7px;color:var(--mu);font-family:inherit;font-size:.8rem;cursor:pointer}
+.pop-check-list{display:flex;flex-direction:column;gap:5px;max-height:230px;overflow-y:auto;margin-bottom:10px}
+.pci{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--sf2);border-radius:7px;cursor:pointer;border:1px solid transparent}
+.pci.on{border-color:var(--ac);background:rgba(108,143,255,.1)}
+.pci-box{width:18px;height:18px;border:1.5px solid var(--bd);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0}
+.pci.on .pci-box{background:var(--ac);border-color:var(--ac);color:#fff}
 
 /* 인수인계서 */
 #screen-profile{overflow:hidden}
 .pf-hdr{background:linear-gradient(135deg,#1a1d27,#0f1117);border-bottom:1px solid var(--bd);padding:11px 16px;display:flex;align-items:center;gap:8px;flex-shrink:0}
-.pf-body{flex:1;overflow-y:auto;padding:16px;max-width:700px;width:100%;margin:0 auto}
-.pf-section{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:16px;margin-bottom:14px}
-.pf-st{font-size:.75rem;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+.pf-body{flex:1;overflow-y:auto;padding:14px;max-width:700px;width:100%;margin:0 auto}
+.pf-sec{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.pf-st{font-size:.73rem;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
 .pf-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:480px){.pf-grid{grid-template-columns:1fr}}
-.pf-field{display:flex;flex-direction:column;gap:4px}.pf-field.full{grid-column:1/-1}
+.pf-f{display:flex;flex-direction:column;gap:4px}.pf-f.full{grid-column:1/-1}
 .pf-label{font-size:.7rem;color:var(--mu)}
-.pf-input{background:var(--sf2);border:1px solid var(--bd);border-radius:6px;padding:6px 9px;color:var(--tx);font-family:inherit;font-size:.83rem;outline:none;width:100%}
-.pf-input:focus{border-color:var(--ac)}
-.pf-textarea{resize:vertical;min-height:58px}
-.spirit-row{display:flex;gap:14px;align-items:flex-start}
-.photo-box{width:80px;height:80px;border-radius:10px;border:1.5px dashed var(--bd);background:var(--sf2);display:flex;align-items:center;justify-content:center;font-size:1.3rem;color:var(--mu);flex-direction:column;text-align:center;flex-shrink:0;font-size:.7rem;background-size:cover;background-position:center;cursor:pointer}
-.spirit-btns{display:flex;flex-wrap:wrap;gap:6px}
-.sp-btn{border-radius:6px;padding:5px 11px;font-size:.78rem;border:.5px solid;cursor:pointer;opacity:.3;font-weight:500;transition:all .15s}
-.sp-btn.on{opacity:1;font-weight:700}
-.level-row{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
-.lv-btn{background:var(--sf2);border:1px solid var(--bd);border-radius:5px;padding:5px 12px;font-size:.78rem;color:var(--mu);cursor:pointer;transition:all .15s}
-.lv-btn.on{font-weight:700}
-.lv-on-g{background:rgba(74,222,128,.15)!important;color:var(--ok)!important;border-color:var(--ok)!important}
-.lv-on-o{background:rgba(246,169,53,.15)!important;color:var(--mn)!important;border-color:var(--mn)!important}
-.lv-on-r{background:rgba(248,113,113,.15)!important;color:var(--dg)!important;border-color:var(--dg)!important}
-.lv-on-a{background:rgba(108,143,255,.15)!important;color:var(--ac)!important;border-color:var(--ac)!important}
-.save-bar{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--bd);padding:10px 16px;display:flex;gap:8px}
-.save-bar button{flex:1;padding:11px;border:none;border-radius:8px;font-family:inherit;font-size:.88rem;font-weight:700;cursor:pointer}
-.save-bar .save-btn{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff}
-.save-bar .back-btn{background:var(--sf2);color:var(--mu)}
-.rel-role-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
-.rel-label{font-size:.72rem;font-weight:700;color:var(--ac2);width:40px;flex-shrink:0;padding-top:8px;text-align:right}
+.pf-inp{background:var(--sf2);border:1px solid var(--bd);border-radius:6px;padding:6px 9px;color:var(--tx);font-family:inherit;font-size:.83rem;outline:none;width:100%}
+.pf-inp:focus{border-color:var(--ac)}
+.pf-ta{resize:vertical;min-height:56px}
+
+/* 심령단계 — 사진1/3 + 심령2/3 */
+.spirit-layout{display:flex;gap:12px;align-items:flex-start}
+.photo-col{width:33%;flex-shrink:0;display:flex;flex-direction:column;align-items:center}
+.photo-box{width:100%;aspect-ratio:1/1;border-radius:10px;border:1.5px dashed var(--bd);background:var(--sf2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:1.5rem;color:var(--mu);cursor:pointer;overflow:hidden;background-size:cover;background-position:center;transition:border-color .2s}
+.photo-box:hover{border-color:var(--ac)}
+.photo-hint{font-size:.6rem;color:var(--mu);text-align:center;margin-top:5px}
+.spirit-col{flex:1;display:flex;flex-direction:column;gap:5px}
+.sp-btn-v{width:100%;text-align:left;border-radius:7px;padding:7px 12px;font-family:inherit;font-size:.8rem;border:.5px solid;cursor:pointer;opacity:.28;font-weight:500;transition:all .18s}
+.sp-btn-v.on{opacity:1;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+
+/* 레벨 버튼 */
+.lv-row{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+.lv{background:var(--sf2);border:1px solid var(--bd);border-radius:5px;padding:5px 12px;font-size:.78rem;color:var(--mu);cursor:pointer;transition:all .15s}
+.lv.on{font-weight:700}
+.lv-g{background:rgba(74,222,128,.15)!important;color:var(--ok)!important;border-color:var(--ok)!important}
+.lv-o{background:rgba(246,169,53,.15)!important;color:var(--mn)!important;border-color:var(--mn)!important}
+.lv-r{background:rgba(248,113,113,.15)!important;color:var(--dg)!important;border-color:var(--dg)!important}
+.lv-a{background:rgba(108,143,255,.15)!important;color:var(--ac)!important;border-color:var(--ac)!important}
+
+/* 도장 (상세카드) */
+.pf-stamp{display:flex;flex-direction:column;align-items:center;justify-content:center;width:62px;height:66px;border-radius:8px;border:2.5px solid #f87171;background:rgba(248,113,113,.07);color:#f87171;transform:rotate(-5deg);padding:4px;flex-shrink:0;user-select:none}
+.pf-stamp .si{font-size:.95rem;line-height:1}.pf-stamp .sn{font-size:.62rem;font-weight:900;margin-top:1px}
+.pf-stamp .sr{font-size:.5rem;color:rgba(248,113,113,.75);letter-spacing:.04em}.pf-stamp .sd{font-size:.46rem;color:rgba(248,113,113,.6);margin-top:1px}
+
+/* 관계 */
+.rel-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px}
+.rel-label{font-size:.7rem;font-weight:700;color:var(--ac2);width:40px;flex-shrink:0;padding-top:7px;text-align:right}
 .rel-fields{display:flex;flex:1;gap:5px;flex-wrap:wrap}
 .rel-inp{background:var(--sf2);border:1px solid var(--bd);border-radius:5px;padding:5px 7px;color:var(--tx);font-family:inherit;font-size:.75rem;outline:none;flex:1;min-width:60px}
 .rel-inp:focus{border-color:var(--ac)}
-/* 스탬프 (상세카드) */
-.stamp-card{display:flex;flex-direction:column;align-items:center;justify-content:center;width:64px;height:68px;border-radius:8px;border:2.5px solid #f87171;background:rgba(248,113,113,.07);color:#f87171;transform:rotate(-5deg);padding:4px;flex-shrink:0}
-.stamp-card .si{font-size:.95rem}.stamp-card .sn{font-size:.62rem;font-weight:900;margin-top:1px}
-.stamp-card .sr{font-size:.5rem;color:rgba(248,113,113,.75);letter-spacing:.04em}.stamp-card .sd{font-size:.46rem;color:rgba(248,113,113,.6);margin-top:1px}
+.friend-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px;align-items:center}
+
 /* 빈 상태 */
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:220px;color:var(--mu);text-align:center;padding:20px;font-size:.85rem;line-height:1.9}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px}
@@ -153,40 +156,40 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx);
 </head>
 <body>
 
-<!-- ① 로그인 -->
+<!-- 로그인 -->
 <div class="screen active" id="screen-login">
 <div style="flex:1;display:flex;align-items:center;justify-content:center">
 <div class="login-box">
-  <div style="font-size:2.5rem;margin-bottom:14px">⛪</div>
-  <h2>구역 관리</h2>
-  <p>구리 청년회 구역 관리 시스템<br>아래 역할을 선택하고 체험해보세요</p>
-  <div class="role-select-row">
-    <div class="role-opt selected" onclick="selectRole(this,'leader')" data-role="leader">
-      <span class="role-icon">👤</span>
-      <div><span>구역장</span><span class="role-desc">구역원 관리, 예배/헌금/목표 기록</span></div>
+  <div style="font-size:2.5rem;margin-bottom:12px">⛪</div>
+  <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:6px">구역 관리</h2>
+  <p style="color:var(--mu);font-size:.78rem;margin-bottom:18px;line-height:1.7">역할을 선택하고 체험해보세요</p>
+  <div id="role-list">
+    <div class="role-opt sel" onclick="selectRole(this,'leader')" data-role="leader">
+      <span style="font-size:1.3rem">👤</span>
+      <div><span>구역장</span><span class="role-desc">예배·헌금·목표 기록, 상세카드 편집</span></div>
     </div>
     <div class="role-opt" onclick="selectRole(this,'region')" data-role="region">
-      <span class="role-icon">👑</span>
-      <div><span>임원 (고현정)</span><span class="role-desc">임원 조언 + 확인 도장, 전체 열람</span></div>
+      <span style="font-size:1.3rem">👑</span>
+      <div><span>임원 (고현정)</span><span class="role-desc">임원 조언 + 확인 도장 기능 체험</span></div>
     </div>
   </div>
-  <button class="btn btn-primary" onclick="enterDemo()">체험 시작 →</button>
-  <p style="font-size:.65rem;color:var(--mu);margin-top:10px">실제 Firebase 연결 없이 샘플 데이터로 체험합니다</p>
+  <button class="btn btn-p" style="margin-top:4px" onclick="enterDemo()">체험 시작 →</button>
+  <p style="font-size:.63rem;color:var(--mu);margin-top:10px">Firebase 연결 없이 샘플 데이터로 체험합니다</p>
 </div>
 </div>
 </div>
 
-<!-- ② 메인 -->
+<!-- 메인 -->
 <div class="screen" id="screen-main">
   <div class="hdr">
     <div class="logo">⛪</div>
     <h1>구역 관리</h1>
-    <div class="hdr-right">
+    <div class="hdr-r">
       <span class="demo-badge">체험판</span>
-      <span class="role-tag" id="role-label"></span>
+      <span id="role-tag" style="font-size:.72rem;color:var(--mu)"></span>
     </div>
   </div>
-  <div class="main-body" id="main-body">
+  <div class="main-body">
     <div class="tab-pane active" id="tab-faith"></div>
     <div class="tab-pane" id="tab-evang"><div class="empty-state"><div style="font-size:2.5rem">🌱</div><p>전도 현황<br>다음 버전 예정</p></div></div>
     <div class="tab-pane" id="tab-visit"><div class="empty-state"><div style="font-size:2.5rem">🫂</div><p>심방 현황<br>다음 버전 예정</p></div></div>
@@ -194,48 +197,56 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx);
     <div class="tab-pane" id="tab-settings">
       <div style="padding:20px;max-width:480px;margin:0 auto">
         <div style="background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;margin-bottom:14px">
-          <div style="padding:14px 16px;border-bottom:1px solid var(--bd);display:flex;gap:10px;align-items:center"><span>🔑</span><span style="flex:1;font-size:.88rem">멤버 · 승인 관리</span><span style="color:var(--mu)">›</span></div>
-          <div style="padding:14px 16px;display:flex;gap:10px;align-items:center"><span>📦</span><span style="flex:1;font-size:.88rem">구역원 이관 승인</span><span style="color:var(--mu)">›</span></div>
+          <div style="padding:13px 16px;border-bottom:1px solid var(--bd);display:flex;gap:10px;align-items:center"><span>🔑</span><span style="flex:1;font-size:.88rem">멤버·승인 관리</span><span style="color:var(--mu)">›</span></div>
+          <div style="padding:13px 16px;display:flex;gap:10px;align-items:center"><span>📦</span><span style="flex:1;font-size:.88rem">구역원 이관 승인</span><span style="color:var(--mu)">›</span></div>
         </div>
-        <div style="text-align:center;color:var(--mu);font-size:.7rem;padding:8px">구역 관리 v3.2 · 체험판</div>
         <button onclick="goLogin()" style="display:block;width:100%;padding:10px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;color:var(--mu);font-family:inherit;cursor:pointer;font-size:.83rem">← 역할 바꾸기</button>
+        <div style="text-align:center;color:var(--mu);font-size:.68rem;padding:10px">구역 관리 v3.2 · 체험판</div>
       </div>
     </div>
   </div>
   <nav class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab('faith')"><span class="tab-icon">📋</span><span class="tab-label">구역 신앙</span></button>
-    <button class="tab-btn" onclick="switchTab('evang')"><span class="tab-icon">🌱</span><span class="tab-label">전도</span></button>
-    <button class="tab-btn" onclick="switchTab('visit')"><span class="tab-icon">🫂</span><span class="tab-label">심방</span></button>
-    <button class="tab-btn" onclick="switchTab('stats')"><span class="tab-icon">📊</span><span class="tab-label">통계</span></button>
-    <button class="tab-btn" onclick="switchTab('settings')"><span class="tab-icon">⚙️</span><span class="tab-label">설정</span></button>
+    <button class="tab-btn active" onclick="switchTab(this,'faith')"><span class="tab-icon">📋</span><span class="tab-label">구역 신앙</span></button>
+    <button class="tab-btn" onclick="switchTab(this,'evang')"><span class="tab-icon">🌱</span><span class="tab-label">전도</span></button>
+    <button class="tab-btn" onclick="switchTab(this,'visit')"><span class="tab-icon">🫂</span><span class="tab-label">심방</span></button>
+    <button class="tab-btn" onclick="switchTab(this,'stats')"><span class="tab-icon">📊</span><span class="tab-label">통계</span></button>
+    <button class="tab-btn" onclick="switchTab(this,'settings')"><span class="tab-icon">⚙️</span><span class="tab-label">설정</span></button>
   </nav>
 </div>
 
-<!-- ③ 상세카드 -->
+<!-- 상세카드 -->
 <div class="screen" id="screen-profile">
   <div class="pf-hdr">
-    <button class="btn btn-ghost btn-sm" onclick="closeProfile()" style="padding:5px 10px;font-size:.75rem;border-radius:6px">← 돌아가기</button>
-    <span id="pf-name-disp" style="font-size:.95rem;font-weight:600;flex:1;text-align:center"></span>
-    <button class="btn btn-sm" style="background:var(--ac);color:#fff" onclick="saveProfile()">저장</button>
+    <button class="btn btn-g btn-s" onclick="closeProfile()">← 돌아가기</button>
+    <span id="pf-name" style="font-size:.95rem;font-weight:600;flex:1;text-align:center"></span>
+    <button onclick="saveProfile()" style="background:var(--ac);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer">저장</button>
   </div>
   <div class="pf-body" id="pf-body"></div>
 </div>
 
-<!-- 팝업 -->
+<!-- 예배 팝업 (원본 구조 동일) -->
 <div class="pop-bg" id="pop-worship">
   <div class="pop">
     <div class="pop-title" id="pop-w-title">예배 기록</div>
-    <div class="pop-btns">
-      <button class="pop-btn" onclick="setWorship('present')">⛪ 현장</button>
-      <button class="pop-btn" onclick="setWorship('zoom')">💻 줌</button>
-      <button class="pop-btn" onclick="setWorship('excuse')">📋 사정</button>
-      <button class="pop-btn absent" onclick="setWorship('absent')">✗ 미출석</button>
-      <button class="pop-btn reset" onclick="setWorship(null)">↩ 초기화</button>
+    <div class="pop-sec">
+      <div class="pop-sec-label">당일출석</div>
+      <div class="pop-row" id="pop-present"></div>
     </div>
+    <div class="pop-sec">
+      <div class="pop-sec-label">줌</div>
+      <div class="pop-row" id="pop-zoom"></div>
+    </div>
+    <div class="pop-sec">
+      <div class="pop-sec-label">사유출석</div>
+      <div class="pop-row" id="pop-excuse"></div>
+    </div>
+    <button class="pop-absent" onclick="setWorship('absent',null,null)">✗ 미출석</button>
+    <button class="pop-reset" onclick="setWorship(null,null,null)">↩ 초기화 (미기록)</button>
     <button class="pop-close" onclick="closePop('pop-worship')">닫기</button>
   </div>
 </div>
 
+<!-- 태그 팝업 -->
 <div class="pop-bg" id="pop-tags">
   <div class="pop">
     <div class="pop-title" id="pop-t-title">선택</div>
@@ -245,10 +256,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx);
 </div>
 
 <script>
-// ── 상태 ──
-let role = 'leader';
-let regionStamped = false;
-
+// ── 상수 (원본과 동일) ──
+const SAMIL_TIMES = ['12시','19시','20시','당일방문'];
+const JUIL_TIMES  = ['12시','15시','19:30','당일방문'];
+const ZOOM_EXTRA  = '그외';
+const EXCUSE      = ['대체예배','온라인예배'];
+const GLOBAL_EDU  = ['제자훈련','성경통독','리더십 훈련','비전스쿨','전도 훈련'];
+const GLOBAL_SVC  = ['찬양팀','봉사부','영상팀','안내팀','주일학교 교사'];
 const SP = {
   fly:  {label:'🦋 날라다녀', bg:'rgba(167,139,250,.18)', co:'#a78bfa', bd:'rgba(167,139,250,.5)'},
   run:  {label:'🏃 뛰고있어', bg:'rgba(108,143,255,.18)', co:'#6c8fff', bd:'rgba(108,143,255,.5)'},
@@ -256,124 +270,126 @@ const SP = {
   lay:  {label:'😪 누워있어', bg:'rgba(246,169,53,.18)',  co:'#f6a935', bd:'rgba(246,169,53,.5)'},
   sleep:{label:'😴 자고있어', bg:'rgba(248,113,113,.18)', co:'#f87171', bd:'rgba(248,113,113,.5)'},
 };
-const GLOBAL_EDU = ['제자훈련','성경통독','리더십 훈련','비전스쿨','전도 훈련'];
-const GLOBAL_SVC = ['찬양팀','봉사부','영상팀','안내팀','주일학교 교사'];
 
+// ── 샘플 데이터 ──
 const MEMBERS = [
   { mid:'m1', name:'김은혜', spiritLevel:'fly', stampDone:true,
-    worship:{samil:'present',juil:'present'}, weekly:true, tithe:true, construction:true,
+    worship:{ samil:{type:'present',time:'19시'}, juil:{type:'present',time:'12시'} },
+    weekly:true, tithe:true, construction:true,
     prevResult:'○', goal:'말씀 묵상 매일', leaderNote:'목표 잘 따라오고 있어요!', prevGoal:'큐티 3회',
     edu:['제자훈련'], svc:['찬양팀'] },
   { mid:'m2', name:'박소망', spiritLevel:'run', stampDone:true,
-    worship:{samil:'zoom',juil:'present'}, weekly:true, tithe:false, construction:true,
+    worship:{ samil:{type:'zoom',time:'19시'}, juil:{type:'present',time:'12시'} },
+    weekly:true, tithe:false, construction:true,
     prevResult:'△', goal:'구역 모임 참석', leaderNote:'', prevGoal:'기도 10분',
     edu:['성경통독'], svc:[] },
   { mid:'m3', name:'이새벽', spiritLevel:'walk', stampDone:false,
-    worship:{samil:'present',juil:'zoom'}, weekly:false, tithe:true, construction:false,
+    worship:{ samil:{type:'present',time:'20시'}, juil:{type:'zoom',time:'12시'} },
+    weekly:false, tithe:true, construction:false,
     prevResult:'✕', goal:'전도 대상자 기도', leaderNote:'', prevGoal:'전도 시도',
     edu:[], svc:['봉사부'] },
   { mid:'m4', name:'최믿음', spiritLevel:'lay', stampDone:false,
-    worship:{samil:null,juil:'excuse'}, weekly:true, tithe:false, construction:false,
+    worship:{ samil:null, juil:{type:'excuse',excuseType:'대체예배'} },
+    weekly:true, tithe:false, construction:false,
     prevResult:null, goal:'', leaderNote:'', prevGoal:'연락 닿기',
     edu:[], svc:[] },
   { mid:'m5', name:'정사랑', spiritLevel:'sleep', stampDone:false,
-    worship:{samil:'absent',juil:null}, weekly:false, tithe:false, construction:false,
+    worship:{ samil:{type:'absent'}, juil:null },
+    weekly:false, tithe:false, construction:false,
     prevResult:null, goal:'', leaderNote:'', prevGoal:'',
     edu:[], svc:[] },
 ];
-
 const DETAIL = {
   m1:{ birth:'1999.03.15', phone:'010-1234-5678', workplace:'서울 마포구 디자인 회사', mbti:'ENFJ',
        spiritLevel:'fly', faithLevel:'상', worshipLevel:'상', faithType:'가족신앙',
        visitTime:'주일 예배 후 대면 가능', caution:'특이사항 없음', prayer:'직장 내 전도, 가족 구원',
        prevLeader:'오하나', prevLeaderContact:'010-9999-0000',
        relFriends:[{이름:'장기쁨',연락처:'010-2222-3333',소속:'창조청년회',관계:'소그룹 친구'}],
-       relRoles:{인도자:{이름:'박인도',연락처:'010-7777-8888',소속:'창조구역',비고:'2023년 인도'},섬김이:{이름:'김섬김',연락처:'',소속:'',비고:''}} },
+       relRoles:{인도자:{이름:'박인도',연락처:'010-7777-8888',소속:'창조구역',비고:'2023년 인도'}} },
   m3:{ birth:'2001.07.22', phone:'010-5678-1234', workplace:'남양주 간호학과 재학', mbti:'INFP',
-       spiritLevel:'walk', faithLevel:'중', worshipLevel:'중', faithType:'홀신앙',
+       spiritLevel:'walk', faithLevel:'중', worshipLevel:'중', faithType:'부분가족신앙',
+       faithTypeNote:'부모님 중 아버지만 비신자, 주일 가정 분위기 어려움',
        visitTime:'목~토 저녁 카톡 가능', caution:'연락 조심스럽게 접근', prayer:'학업, 신앙 정착',
        prevLeader:'나은혜', prevLeaderContact:'010-6666-7777',
        relFriends:[], relRoles:{} },
 };
-// 나머지 멤버 빈 detail
-['m2','m4','m5'].forEach(id => {
-  if (!DETAIL[id]) DETAIL[id] = { relFriends:[], relRoles:{} };
-});
+['m2','m4','m5'].forEach(id=>{ if(!DETAIL[id]) DETAIL[id]={relFriends:[],relRoles:{}}; });
 
-// ── 팝업 임시 상태 ──
-let popCtx = {};
+let demoRole = 'leader';
+let regionStamped = false;
 
 // ── 역할 선택 ──
 function selectRole(el, r) {
-  document.querySelectorAll('.role-opt').forEach(x => x.classList.remove('selected'));
-  el.classList.add('selected');
-  role = r;
+  document.querySelectorAll('.role-opt').forEach(x=>x.classList.remove('sel'));
+  el.classList.add('sel'); demoRole = r;
 }
-
 function enterDemo() {
-  document.getElementById('role-label').textContent = role === 'region' ? '👑 임원' : '👤 구역장';
-  showScreen('main');
-  renderFaith();
+  document.getElementById('role-tag').textContent = demoRole==='region' ? '👑 임원' : '👤 구역장';
+  showScreen('main'); renderFaith();
 }
 function goLogin() { showScreen('login'); }
 
 // ── 화면 전환 ──
 function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('screen-' + id)?.classList.add('active');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+id)?.classList.add('active');
 }
-function switchTab(tab) {
-  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-' + tab)?.classList.add('active');
-  event.currentTarget.classList.add('active');
+function switchTab(btn, tab) {
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+tab)?.classList.add('active');
+  btn.classList.add('active');
 }
 
-// ── 예배 셀 렌더 ──
+// ── 예배 셀 렌더 (원본 wCell과 동일 로직) ──
 function wCell(v) {
-  if (!v) return '<span style="color:rgba(255,255,255,.18)">—</span>';
-  if (v==='absent') return '<span style="color:var(--dg);font-size:.82rem;font-weight:600">✗</span>';
-  const m = {present:{c:'var(--ok)',s:'●'},zoom:{c:'var(--ac)',s:'Z'},excuse:{c:'var(--mn)',s:'사'}};
-  const cfg = m[v]||{c:'var(--mu)',s:'?'};
-  return '<span style="color:'+cfg.c+';font-size:.78rem">'+cfg.s+'</span>';
+  if (!v || !v.type) return '<span style="color:rgba(255,255,255,.18)">—</span>';
+  if (v.type==='absent') return '<span class="wc-val" style="color:var(--dg);font-weight:600">✗</span>';
+  const map = {present:{c:'var(--ok)',s:'●'},zoom:{c:'var(--ac)',s:'Z'},excuse:{c:'var(--mn)',s:'사'}};
+  const cfg = map[v.type]||{c:'var(--mu)',s:'?'};
+  const sub = v.time||v.excuseType||'';
+  return '<span class="wc-val" style="color:'+cfg.c+'">'+cfg.s+'</span>'
+    +(sub?'<span class="wc-sub" style="color:'+cfg.c+'">'+sub+'</span>':'');
 }
 
 // ── 신앙관리 렌더 ──
 function renderFaith() {
   const EMOJI = {'○':'✅','△':'🔸','✕':'❌'};
-  const stampHtml = regionStamped
-    ? (()=>{ const d=new Date(); const ds=d.getFullYear()+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getDate()).padStart(2,'0');
-        return '<div class="faith-stamp stamp-done"><div class="si">🌸</div><div class="sn">고현정</div><div class="sr">임원확인</div><div class="sd">'+ds+'</div></div>'; })()
-    : '<div class="faith-stamp stamp-empty" onclick="doStamp()" title="확인 도장"><div class="si">🔲</div><div class="sr">미확인</div></div>';
+  const now = new Date();
+  const ds  = now.getFullYear()+'.'+String(now.getMonth()+1).padStart(2,'0')+'.'+String(now.getDate()).padStart(2,'0');
 
-  const rows = MEMBERS.map(m => {
+  const stampHtml = regionStamped
+    ? '<div class="fstamp fstamp-on"><div class="fsi">🌸</div><div class="fsn">고현정</div><div class="fsr">임원확인</div><div class="fsd">'+ds+'</div></div>'
+    : '<div class="fstamp fstamp-off" onclick="doRegionStamp()" title="확인 도장 찍기"><div class="fsi">🔲</div><div class="fsr">미확인</div></div>';
+
+  const rows = MEMBERS.map(m=>{
     const sp = SP[m.spiritLevel]||{};
     const spB = sp.label ? '<span class="sp-badge" style="background:'+sp.bg+';color:'+sp.co+';border-color:'+sp.bd+'">'+sp.label+'</span>' : '';
     const smB = m.stampDone
-      ? '<span class="stamp-mini sm-done">✅ 고현정</span>'
-      : '<span class="stamp-mini sm-empty" onclick="stampMember(\''+m.mid+'\')" style="cursor:pointer">미확인</span>';
-    const eduB = m.edu.map(e=>'<span class="badge badge-edu">'+e+'</span>').join('')+'<span class="badge-add">+</span>';
-    const svcB = m.svc.map(s=>'<span class="badge badge-svc">'+s+'</span>').join('')+'<span class="badge-add">+</span>';
-    const rBtns = ['○','△','✕'].map(r=>'<button class="rbtn'+(m.prevResult===r?' ron':'')+'" onclick="toggleResult(\''+m.mid+'\',\''+r+'\')">'+EMOJI[r]+'</button>').join('');
-    return '<tr class="faith-row">'
-      +'<td class="col-name" onclick="openProfile(\''+m.mid+'\')">'
-        +'<span class="mname">'+m.name+'</span>'+spB+smB+'</td>'
-      +'<td class="wc" onclick="openWorshipPop(\''+m.mid+'\',\'samil\')">'+wCell(m.worship.samil)+'</td>'
-      +'<td class="wc sep" onclick="openWorshipPop(\''+m.mid+'\',\'juil\')">'+wCell(m.worship.juil)+'</td>'
+      ? '<span class="sm sm-on">✅ 고현정</span>'
+      : '<span class="sm sm-off" onclick="stampMember(\''+m.mid+'\')" title="도장 찍기">미확인</span>';
+    const eduB = m.edu.map(e=>'<span class="badge b-edu">'+e+'</span>').join('')+'<span class="b-add">+</span>';
+    const svcB = m.svc.map(s=>'<span class="badge b-svc">'+s+'</span>').join('')+'<span class="b-add">+</span>';
+    const rBtns = ['○','△','✕'].map(r=>'<button class="rb'+(m.prevResult===r?' ron':'')+'" onclick="toggleResult(\''+m.mid+'\',\''+r+'\')">'+EMOJI[r]+'</button>').join('');
+    return '<tr class="fr">'
+      +'<td class="col-n" onclick="openProfile(\''+m.mid+'\')">'
+        +'<span class="mn">'+m.name+'</span>'+spB+smB+'</td>'
+      +'<td class="wc" onclick="openWPop(\''+m.mid+'\',\'samil\')">'+wCell(m.worship.samil)+'</td>'
+      +'<td class="wc sep" onclick="openWPop(\''+m.mid+'\',\'juil\')">'+wCell(m.worship.juil)+'</td>'
       +'<td class="tags-td" onclick="openTagsPop(\''+m.mid+'\',\'edu\')">'+eduB+'</td>'
       +'<td class="tags-td sep" onclick="openTagsPop(\''+m.mid+'\',\'svc\')">'+svcB+'</td>'
-      +'<td class="chk-td '+(m.weekly?'chk-on':'')+'" onclick="toggleChk(\''+m.mid+'\',\'weekly\')">'+(m.weekly?'✓':'<span class="dot">·</span>')+'</td>'
-      +'<td class="chk-td '+(m.tithe?'chk-on chk-m':'')+'" onclick="toggleChk(\''+m.mid+'\',\'tithe\')">'+(m.tithe?'✓':'<span class="dot">·</span>')+'</td>'
-      +'<td class="chk-td sep '+(m.construction?'chk-on chk-m':'')+'" onclick="toggleChk(\''+m.mid+'\',\'construction\')">'+(m.construction?'✓':'<span class="dot">·</span>')+'</td>'
+      +'<td class="chk '+(m.weekly?'chk-a':'')+'" onclick="toggleChk(\''+m.mid+'\',\'weekly\')">'+(m.weekly?'✓':'<span class="dot">·</span>')+'</td>'
+      +'<td class="chk '+(m.tithe?'chk-a chk-m':'')+'" onclick="toggleChk(\''+m.mid+'\',\'tithe\')">'+(m.tithe?'✓':'<span class="dot">·</span>')+'</td>'
+      +'<td class="chk sep '+(m.construction?'chk-a chk-m':'')+'" onclick="toggleChk(\''+m.mid+'\',\'construction\')">'+(m.construction?'✓':'<span class="dot">·</span>')+'</td>'
       +'<td class="prev-td">'+(m.prevGoal||'')+'</td>'
       +'<td class="res-td">'+rBtns+'</td>'
       +'<td class="goal-td">'
-        +'<input class="goal-inp" placeholder="이번주 목표…" value="'+escHtml(m.goal||'')+'" oninput="setGoal(\''+m.mid+'\',this.value,\'goal\')">'
-        +(role==='region'
-          ?'<input class="goal-inp advisor-inp" placeholder="💬 임원 조언…" value="'+escHtml(m.leaderNote||'')+'" oninput="setGoal(\''+m.mid+'\',this.value,\'note\')">'
-          :(m.leaderNote?'<div style="font-size:.7rem;color:#a78bfa;padding:2px 2px">💬 '+escHtml(m.leaderNote)+'</div>':''))
+        +'<input class="gi" placeholder="이번주 목표…" value="'+e(m.goal||'')+'" oninput="setGoal(\''+m.mid+'\',this.value,\'g\')">'
+        +(demoRole==='region'
+          ?'<input class="gi gi-adv" placeholder="💬 임원 조언…" value="'+e(m.leaderNote||'')+'" oninput="setGoal(\''+m.mid+'\',this.value,\'n\')">'
+          :(m.leaderNote?'<div style="font-size:.7rem;color:#a78bfa;padding:2px">💬 '+e(m.leaderNote)+'</div>':''))
       +'</td>'
-      +'</tr>';
+    +'</tr>';
   }).join('');
 
   document.getElementById('tab-faith').innerHTML =
@@ -382,233 +398,248 @@ function renderFaith() {
       +'<span class="week-badge">2025년 19주차</span>'
       +stampHtml
     +'</div>'
-    +'<div class="table-wrap"><table class="faith-table"><thead>'
+    +'<div class="table-wrap"><table class="ft"><thead>'
     +'<tr>'
-      +'<th rowspan="2" style="text-align:left;padding-left:10px;min-width:72px">이름</th>'
-      +'<th colspan="2" class="sh">⛪ 예배</th>'
-      +'<th>📖 교육</th><th>🤝 모임</th>'
-      +'<th colspan="3" style="background:#251520;color:#c97ab5">💰 헌금</th>'
-      +'<th colspan="3" style="background:#1e1a2a;color:#a78bfa">🎯 단계향상 목표</th>'
-    +'</tr>'
-    +'<tr>'
-      +'<th class="sh">삼일</th><th class="sh" style="border-right:1px solid rgba(133,183,235,.2)">주일</th>'
-      +'<th style="min-width:90px;text-align:left;padding-left:6px">받은 교육</th>'
-      +'<th style="min-width:90px;text-align:left;padding-left:6px;border-right:1px solid rgba(255,255,255,.07)">모임(봉사)</th>'
-      +'<th style="background:#1a1a26;width:30px">주정</th>'
-      +'<th style="background:#1a1508;color:var(--mn);width:30px">십일</th>'
-      +'<th style="background:#1a1508;color:var(--mn);width:30px;border-right:1px solid rgba(255,255,255,.07)">건축</th>'
-      +'<th style="min-width:90px;text-align:left;padding-left:6px">지난주 목표</th>'
-      +'<th style="width:90px">달성</th>'
-      +'<th style="min-width:160px;text-align:left;padding-left:6px">'+(role==='region'?'목표 / 임원 조언':'이번주 목표')+'</th>'
+    +'<th rowspan="2" style="text-align:left;padding-left:10px;min-width:72px">이름</th>'
+    +'<th colspan="2" class="sh">⛪ 예배</th>'
+    +'<th>📖 교육</th><th>🤝 모임</th>'
+    +'<th colspan="3" style="background:#251520;color:#c97ab5">💰 헌금</th>'
+    +'<th colspan="3" style="background:#1e1a2a;color:#a78bfa">🎯 목표</th>'
+    +'</tr><tr>'
+    +'<th class="sh">삼일</th><th class="sh sep">주일</th>'
+    +'<th style="min-width:90px;text-align:left;padding-left:6px">받은 교육</th>'
+    +'<th style="min-width:90px;text-align:left;padding-left:6px;border-right:1px solid rgba(255,255,255,.07)">모임(봉사)</th>'
+    +'<th style="background:#1a1a26;width:30px">주정</th>'
+    +'<th style="background:#1a1508;color:var(--mn);width:30px">십일</th>'
+    +'<th style="background:#1a1508;color:var(--mn);width:30px;border-right:1px solid rgba(255,255,255,.07)">건축</th>'
+    +'<th style="min-width:90px;text-align:left;padding-left:6px">지난주 목표</th>'
+    +'<th style="width:90px">달성</th>'
+    +'<th style="min-width:160px;text-align:left;padding-left:6px">'+(demoRole==='region'?'목표 / 임원조언':'이번주 목표')+'</th>'
     +'</tr></thead><tbody>'+rows+'</tbody></table></div>'
-    +'<div class="hint">이름 터치 → 상세카드 &nbsp;|&nbsp; 예배·헌금·배지 터치 → 편집 &nbsp;|&nbsp; '+(role==='region'?'💬 임원 조언 입력 가능':'목표 직접 입력 가능')+'</div>';
+    +'<div class="hint">이름 → 상세카드 &nbsp;|&nbsp; 예배·배지·헌금 터치 → 편집'+(demoRole==='region'?' &nbsp;|&nbsp; 💬 임원 조언 입력 가능':'')+'</div>';
 }
 
-// ── 이벤트 핸들러 ──
-function doStamp() {
-  if (!confirm('고현정 임원으로 이번 주 신앙관리를 확인하시겠어요?')) return;
-  regionStamped = true; renderFaith();
+// ── 이벤트 ──
+function doRegionStamp() {
+  if(!confirm('고현정 임원으로 이번 주 신앙관리를 확인하시겠어요?')) return;
+  regionStamped=true; renderFaith();
 }
 function stampMember(mid) {
-  const m = MEMBERS.find(x=>x.mid===mid); if (!m||m.stampDone) return;
-  if (!confirm(m.name+'의 인수인계서를 확인했나요?')) return;
-  m.stampDone = true; renderFaith();
+  const m=MEMBERS.find(x=>x.mid===mid); if(!m||m.stampDone) return;
+  if(!confirm(m.name+'의 인수인계서를 확인하시겠어요?')) return;
+  m.stampDone=true; renderFaith();
 }
-function toggleChk(mid, field) {
-  const m = MEMBERS.find(x=>x.mid===mid); if (!m) return;
-  m[field] = !m[field]; renderFaith();
-}
-function toggleResult(mid, r) {
-  const m = MEMBERS.find(x=>x.mid===mid); if (!m) return;
-  m.prevResult = m.prevResult===r ? null : r; renderFaith();
-}
-function setGoal(mid, val, type) {
-  const m = MEMBERS.find(x=>x.mid===mid); if (!m) return;
-  if (type==='goal') m.goal=val; else m.leaderNote=val;
-}
+function toggleChk(mid,f) { const m=MEMBERS.find(x=>x.mid===mid); if(!m) return; m[f]=!m[f]; renderFaith(); }
+function toggleResult(mid,r) { const m=MEMBERS.find(x=>x.mid===mid); if(!m) return; m.prevResult=m.prevResult===r?null:r; renderFaith(); }
+function setGoal(mid,val,t) { const m=MEMBERS.find(x=>x.mid===mid); if(!m) return; if(t==='g') m.goal=val; else m.leaderNote=val; }
 
-// 예배 팝업
-let _wpCtx = {};
-function openWorshipPop(mid, wtype) {
-  _wpCtx = {mid,wtype};
-  document.getElementById('pop-w-title').textContent = (wtype==='samil'?'삼일':'주일') + ' 예배 기록';
+// ── 예배 팝업 (원본과 동일 섹션 구조) ──
+let _wCtx={};
+function openWPop(mid,wtype) {
+  _wCtx={mid,wtype};
+  const m=MEMBERS.find(x=>x.mid===mid)||{};
+  const cur=m.worship[wtype]||{};
+  const times=wtype==='samil'?SAMIL_TIMES:JUIL_TIMES;
+  document.getElementById('pop-w-title').textContent=wtype==='samil'?'삼일예배':'주일예배';
+
+  function btn(type, time, excuseType, label) {
+    let on='';
+    if(type==='present' && cur.type==='present' && cur.time===time) on=' pop-present-on';
+    if(type==='zoom'    && cur.type==='zoom'    && cur.time===time) on=' pop-zoom-on';
+    if(type==='excuse'  && cur.type==='excuse'  && cur.excuseType===excuseType) on=' pop-excuse-on';
+    return '<button class="pop-btn'+on+'" onclick="setWorship(\''+type+'\',\''+time+'\',\''+excuseType+'\')">'+label+'</button>';
+  }
+  document.getElementById('pop-present').innerHTML=times.map(t=>btn('present',t,null,t)).join('');
+  document.getElementById('pop-zoom').innerHTML=[...times.filter(t=>t!=='당일방문'),ZOOM_EXTRA].map(t=>btn('zoom',t,null,t)).join('');
+  document.getElementById('pop-excuse').innerHTML=EXCUSE.map(t=>btn('excuse',null,t,t)).join('');
   document.getElementById('pop-worship').classList.add('show');
 }
-function setWorship(val) {
-  const m = MEMBERS.find(x=>x.mid===_wpCtx.mid); if (!m) return;
-  m.worship[_wpCtx.wtype] = val;
+function setWorship(type,time,excuse) {
+  const m=MEMBERS.find(x=>x.mid===_wCtx.mid); if(!m) return;
+  if(!type) m.worship[_wCtx.wtype]=null;
+  else m.worship[_wCtx.wtype]={type, time:time||null, excuseType:excuse||null};
   closePop('pop-worship'); renderFaith();
 }
 
-// 교육/봉사 팝업
-let _tpCtx = {};
-function openTagsPop(mid, dtype) {
-  _tpCtx = {mid, dtype};
-  const m = MEMBERS.find(x=>x.mid===mid); if (!m) return;
-  const list = dtype==='edu' ? GLOBAL_EDU : GLOBAL_SVC;
-  const current = dtype==='edu' ? m.edu : m.svc;
-  document.getElementById('pop-t-title').textContent = dtype==='edu'?'받은 교육 선택':'모임·봉사 선택';
-  document.getElementById('pop-t-list').innerHTML = list.map(item=>{
-    const on = current.includes(item);
-    return '<div class="pop-check-item'+(on?' on':'')+'" onclick="toggleTag(this,\''+item+'\')">'
-      +'<div class="pop-check-icon">'+(on?'✓':'')+'</div>'
+// ── 태그 팝업 ──
+let _tCtx={};
+function openTagsPop(mid,dtype) {
+  _tCtx={mid,dtype};
+  const m=MEMBERS.find(x=>x.mid===mid)||{};
+  const list=dtype==='edu'?GLOBAL_EDU:GLOBAL_SVC;
+  const cur=dtype==='edu'?m.edu:m.svc;
+  document.getElementById('pop-t-title').textContent=dtype==='edu'?'받은 교육 선택':'모임·봉사 선택';
+  document.getElementById('pop-t-list').innerHTML=list.map(item=>{
+    const on=cur.includes(item);
+    return '<div class="pci'+(on?' on':'')+'" onclick="toggleTag(this,\''+item+'\')">'
+      +'<div class="pci-box">'+(on?'✓':'')+'</div>'
       +'<span style="font-size:.83rem">'+item+'</span></div>';
   }).join('');
   document.getElementById('pop-tags').classList.add('show');
 }
-function toggleTag(el, item) {
-  const m = MEMBERS.find(x=>x.mid===_tpCtx.mid); if (!m) return;
-  const arr = _tpCtx.dtype==='edu' ? m.edu : m.svc;
-  const idx = arr.indexOf(item);
-  if (idx>=0) arr.splice(idx,1); else arr.push(item);
-  el.classList.toggle('on');
-  el.querySelector('.pop-check-icon').textContent = arr.includes(item)?'✓':'';
+function toggleTag(el,item) {
+  const m=MEMBERS.find(x=>x.mid===_tCtx.mid); if(!m) return;
+  const arr=_tCtx.dtype==='edu'?m.edu:m.svc;
+  const idx=arr.indexOf(item);
+  if(idx>=0) arr.splice(idx,1); else arr.push(item);
+  el.classList.toggle('on',arr.includes(item));
+  el.querySelector('.pci-box').textContent=arr.includes(item)?'✓':'';
 }
 
 function closePop(id) { document.getElementById(id).classList.remove('show'); }
-document.querySelectorAll('.pop-bg').forEach(bg => bg.addEventListener('click', e=>{ if(e.target===bg) bg.classList.remove('show'); }));
+document.querySelectorAll('.pop-bg').forEach(bg=>bg.addEventListener('click',ev=>{if(ev.target===bg)bg.classList.remove('show');}));
 
 // ── 상세카드 ──
-let _curMid = '';
+let _curMid='';
 function openProfile(mid) {
-  _curMid = mid;
-  const m = MEMBERS.find(x=>x.mid===mid)||{};
-  const d = DETAIL[mid]||{relFriends:[],relRoles:{}};
-  document.getElementById('pf-name-disp').textContent = m.name||'';
-  const sp = SP[m.spiritLevel]||{};
+  _curMid=mid;
+  const m=MEMBERS.find(x=>x.mid===mid)||{};
+  const d=DETAIL[mid]||{relFriends:[],relRoles:{}};
+  document.getElementById('pf-name').textContent=m.name||'';
 
   // 도장
-  const stampHtml = m.stampDone
-    ? (()=>{const dt=new Date();const ds=dt.getFullYear()+'.'+String(dt.getMonth()+1).padStart(2,'0')+'.'+String(dt.getDate()).padStart(2,'0');
-        return '<div class="stamp-card"><div class="si">🌸</div><div class="sn">고현정</div><div class="sr">임원확인</div><div class="sd">'+ds+'</div></div>'})()
-    : '';
+  const now=new Date();
+  const ds=now.getFullYear()+'.'+String(now.getMonth()+1).padStart(2,'0')+'.'+String(now.getDate()).padStart(2,'0');
+  const stampHtml=m.stampDone
+    ?'<div class="pf-stamp"><div class="si">🌸</div><div class="sn">고현정</div><div class="sr">임원확인</div><div class="sd">'+ds+'</div></div>'
+    :'';
 
   // 지체관계
-  const friends = (d.relFriends||[]).map((f,i)=>
-    '<div class="rel-role-row" style="align-items:center">'
-    +'<div class="rel-label" style="font-size:.65rem">친분'+(i+1)+'</div>'
-    +'<div class="rel-fields">'
-    +['이름','연락처','소속','관계'].map(c=>'<input class="rel-inp" placeholder="'+c+'" value="'+escHtml(f[c]||'')+'">').join('')
-    +'</div></div>'
+  const ROLES=['인도자','섬김이','교사','전도사','강사'];
+  const friends=(d.relFriends||[]).map((f,i)=>
+    '<div class="friend-row">'
+    +'<span style="font-size:.65rem;color:var(--ac2);width:40px;text-align:right;flex-shrink:0;padding-top:6px">친분'+(i+1)+'</span>'
+    +['이름','연락처','소속','관계'].map(c=>'<input class="rel-inp" placeholder="'+c+'" value="'+e(f[c]||'')+'">').join('')
+    +'<button onclick="delFriend('+i+')" style="background:transparent;border:none;color:var(--dg);cursor:pointer;font-size:.8rem;padding:4px;flex-shrink:0">✕</button>'
+    +'</div>'
   ).join('');
-  const ROLES = ['인도자','섬김이','교사','전도사','강사'];
-  const rolesHtml = ROLES.map(r=>{
-    const rv = (d.relRoles||{})[r]||{};
-    return '<div class="rel-role-row"><div class="rel-label">'+r+'</div><div class="rel-fields">'
-      +['이름','연락처','소속','비고'].map(c=>'<input class="rel-inp" placeholder="'+c+'" value="'+escHtml(rv[c]||'')+'">').join('')
+  const rolesHtml=ROLES.map(r=>{
+    const rv=(d.relRoles||{})[r]||{};
+    return '<div class="rel-row"><div class="rel-label">'+r+'</div><div class="rel-fields">'
+      +['이름','연락처','소속','비고'].map(c=>'<input class="rel-inp" placeholder="'+c+'" value="'+e(rv[c]||'')+'">').join('')
       +'</div></div>';
   }).join('');
 
-  document.getElementById('pf-body').innerHTML =
-    // 심령+사진
-    '<div class="pf-section"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">'
+  // 부분가족신앙 메모칸 표시 여부
+  const showFtNote = d.faithType==='부분가족신앙';
+
+  document.getElementById('pf-body').innerHTML=
+    // ① 심령단계 (사진 1/3 + 심령 2/3)
+    '<div class="pf-sec"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">'
     +'<div class="pf-st" style="margin-bottom:0">✨ 심령 단계</div>'+stampHtml+'</div>'
-    +'<div class="spirit-row">'
-    +'<div class="photo-box" style="font-size:1.3rem" title="사진 업로드">📷<span style="font-size:.6rem;margin-top:4px">사진 추가</span></div>'
-    +'<div style="flex:1">'
-    +'<div id="pf-sp-disp" style="border-radius:6px;padding:6px 14px;font-size:.82rem;font-weight:600;text-align:center;margin-bottom:8px;'+(sp.bg?'background:'+sp.bg+';color:'+sp.co+';border:0.5px solid '+sp.bd:'display:none')+'">'+sp.label+'</div>'
-    +'<div class="spirit-btns" id="pf-sp-btns">'
-    +Object.entries(SP).map(([k,s])=>'<button class="sp-btn'+(m.spiritLevel===k?' on':'')+'" style="background:'+s.bg+';color:'+s.co+';border-color:'+s.bd+'" onclick="setPfSpirit(\''+k+'\')">'+s.label+'</button>').join('')
-    +'</div></div></div></div>'
-    // 기본정보
-    +'<div class="pf-section"><div class="pf-st">📋 기본 정보</div><div class="pf-grid">'
-    +pfInput('생년월일','birth',d.birth,'pf-birth')
-    +pfInput('연락처','phone',d.phone||m.phone,'pf-phone')
-    +pfInput('직장·학교','workplace',d.workplace,'pf-workplace')
-    +pfInput('MBTI','mbti',d.mbti,'pf-mbti')
-    +'<div class="pf-field full"><div class="pf-label">신앙 유형</div><div class="level-row" id="pf-ft-row">'
-    +['가족신앙','홀신앙','부분가족신앙'].map(v=>'<button class="lv-btn'+(d.faithType===v?' on lv-on-a':'')+'" onclick="setPfLevel(this,\'faithType\',\''+v+'\',\'a\')">'+v+'</button>').join('')
-    +'</div></div>'
-    +'</div></div>'
-    // 예배생활
-    +'<div class="pf-section"><div class="pf-st">⛪ 예배 생활</div>'
-    +'<div class="pf-field" style="margin-bottom:10px"><div class="pf-label">예배 수준</div><div class="level-row">'
-    +['상','중','하'].map((v,i)=>'<button class="lv-btn'+(d.worshipLevel===v?' on lv-on-'+(i===0?'g':i===1?'o':'r'):'')+'" onclick="setPfLevel(this,\'worshipLevel\',\''+v+'\','+(i===0?'\'g\'':(i===1?'\'o\'':'\'r\''))+')">'+v+'</button>').join('')
-    +'</div></div>'
-    +pfTextarea('예배 특이사항','worshipLevelNote',d.worshipLevelNote,'pf-wnote')
+    +'<div class="spirit-layout">'
+    +'<div class="photo-col">'
+    +'<label class="photo-box" id="photo-box" for="photo-inp" title="사진 업로드"><span style="font-size:1.6rem">📷</span><span style="font-size:.6rem;margin-top:6px">사진 추가</span></label>'
+    +'<input type="file" id="photo-inp" accept="image/*" style="display:none" onchange="uploadPhoto(this)">'
+    +'<div class="photo-hint">클릭하여 업로드</div>'
     +'</div>'
-    // 신앙상태
-    +'<div class="pf-section"><div class="pf-st">📖 신앙 상태</div>'
-    +'<div class="pf-field" style="margin-bottom:10px"><div class="pf-label">신앙 수준</div><div class="level-row">'
-    +['상','중','하'].map((v,i)=>'<button class="lv-btn'+(d.faithLevel===v?' on lv-on-'+(i===0?'g':i===1?'o':'r'):'')+'" onclick="setPfLevel(this,\'faithLevel\',\''+v+'\','+(i===0?'\'g\'':(i===1?'\'o\'':'\'r\''))+')">'+v+'</button>').join('')
-    +'</div></div>'
-    +pfTextarea('기도제목','prayer',d.prayer,'pf-prayer')
+    +'<div class="spirit-col" id="sp-col">'
+    +Object.entries(SP).map(([k,s])=>'<button class="sp-btn-v'+(m.spiritLevel===k?' on':'')+'" style="background:'+s.bg+';color:'+s.co+';border-color:'+s.bd+'" onclick="setSpirit(\''+k+'\')">'+s.label+'</button>').join('')
+    +'</div></div></div>'
+    // ② 기본정보
+    +'<div class="pf-sec"><div class="pf-st">📋 기본 정보</div><div class="pf-grid">'
+    +fi('생년월일','pf-birth',d.birth)+fi('연락처','pf-phone',d.phone||m.phone)
+    +fi('직장·학교','pf-workplace',d.workplace)+fi('MBTI','pf-mbti',d.mbti)
+    +'<div class="pf-f full"><div class="pf-label">신앙 유형</div><div class="lv-row" id="ft-row">'
+    +['가족신앙','홀신앙','부분가족신앙'].map(v=>'<button class="lv'+(d.faithType===v?' on lv-a':'')+'" onclick="setFaithType(\''+v+'\')">'+v+'</button>').join('')
     +'</div>'
-    // 지체관계
-    +'<div class="pf-section"><div class="pf-st">🔗 지체 관계</div>'
+    +'<div id="ft-note-wrap" style="margin-top:8px;display:'+(showFtNote?'block':'none')+'">'
+    +'<textarea class="pf-inp pf-ta" id="pf-ft-note" placeholder="부분가족신앙 메모 (예: 아버지 비신자, 주일 분위기 어려움…)" style="min-height:48px">'+e(d.faithTypeNote||'')+'</textarea>'
+    +'</div></div>'
+    +'</div></div>'
+    // ③ 예배생활
+    +'<div class="pf-sec"><div class="pf-st">⛪ 예배 생활</div>'
+    +'<div class="pf-f" style="margin-bottom:10px"><div class="pf-label">예배 수준</div><div class="lv-row" id="wl-row">'
+    +['상','중','하'].map((v,i)=>'<button class="lv'+(d.worshipLevel===v?' on lv-'+(i===0?'g':i===1?'o':'r'):'')+'" onclick="setLv(this,\'worshipLevel\',\''+v+'\','+(i===0?'\'g\'':i===1?'\'o\'':'\'r\'')+',\'wl-row\')">'+v+'</button>').join('')
+    +'</div></div>'
+    +ta('예배 특이사항','pf-wnote',d.worshipLevelNote)
+    +'</div>'
+    // ④ 신앙상태
+    +'<div class="pf-sec"><div class="pf-st">📖 신앙 상태</div>'
+    +'<div class="pf-f" style="margin-bottom:10px"><div class="pf-label">신앙 수준</div><div class="lv-row" id="fl-row">'
+    +['상','중','하'].map((v,i)=>'<button class="lv'+(d.faithLevel===v?' on lv-'+(i===0?'g':i===1?'o':'r'):'')+'" onclick="setLv(this,\'faithLevel\',\''+v+'\','+(i===0?'\'g\'':i===1?'\'o\'':'\'r\'')+',\'fl-row\')">'+v+'</button>').join('')
+    +'</div></div>'
+    +ta('기도제목','pf-prayer',d.prayer)
+    +'</div>'
+    // ⑤ 지체관계
+    +'<div class="pf-sec"><div class="pf-st">🔗 지체 관계</div>'
     +'<div style="font-size:.7rem;font-weight:700;color:var(--mu);margin-bottom:6px">👥 친분자</div>'
-    +friends
+    +'<div id="friends-wrap">'+friends+'</div>'
     +'<button onclick="addFriend()" style="background:var(--sf2);border:1px solid var(--bd);border-radius:5px;padding:5px 12px;font-size:.75rem;color:var(--ac);cursor:pointer;margin-bottom:12px">＋ 친분자 추가</button>'
     +'<div style="font-size:.7rem;font-weight:700;color:var(--mu);margin-bottom:6px">🔗 관계 인물</div>'
     +rolesHtml+'</div>'
-    // 인수인계 핵심
-    +'<div class="pf-section"><div class="pf-st">⚠️ 인수인계 핵심</div>'
-    +pfTextarea('심방 시간·방법','visitTime',d.visitTime,'pf-vt')
-    +pfTextarea('주의사항','caution',d.caution,'pf-caution')
-    +pfTextarea('기도제목','prayer',d.prayer,'pf-prayer2')
+    // ⑥ 인수인계 핵심
+    +'<div class="pf-sec"><div class="pf-st">⚠️ 인수인계 핵심</div>'
+    +ta('심방 시간·방법','pf-vt',d.visitTime)
+    +ta('주의사항','pf-caution',d.caution)
+    +ta('기도제목','pf-prayer2',d.prayer)
     +'</div>'
-    // 이전 담당자
-    +'<div class="pf-section"><div class="pf-st">👤 이전 담당자</div><div class="pf-grid">'
-    +pfInput('이름','prevLeader',d.prevLeader,'pf-pl')
-    +pfInput('연락처','prevLeaderContact',d.prevLeaderContact,'pf-plc')
+    // ⑦ 이전 담당자
+    +'<div class="pf-sec"><div class="pf-st">👤 이전 담당자</div><div class="pf-grid">'
+    +fi('이름','pf-pl',d.prevLeader)+fi('연락처','pf-plc',d.prevLeaderContact)
     +'</div></div>'
     +'<div style="height:20px"></div>';
 
   showScreen('profile');
 }
 
-function pfInput(label, field, val, id) {
-  return '<div class="pf-field"><div class="pf-label">'+label+'</div>'
-    +'<input class="pf-input" id="'+id+'" value="'+escHtml(val||'')+'" placeholder="'+label+'"></div>';
-}
-function pfTextarea(label, field, val, id) {
-  return '<div class="pf-field full"><div class="pf-label">'+label+'</div>'
-    +'<textarea class="pf-input pf-textarea" id="'+id+'">'+escHtml(val||'')+'</textarea></div>';
+// 사진 업로드
+function uploadPhoto(input) {
+  if(!input.files?.[0]) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      const c=document.createElement('canvas');
+      const M=240; let w=img.width,h=img.height;
+      if(w>h){if(w>M){h=h*M/w;w=M;}}else{if(h>M){w=w*M/h;h=M;}}
+      c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);
+      const b64=c.toDataURL('image/jpeg',.8);
+      const box=document.getElementById('photo-box');
+      if(box){box.style.backgroundImage='url('+b64+')';box.innerHTML='';}
+    };
+    img.src=ev.target.result;
+  };
+  r.readAsDataURL(input.files[0]);
 }
 
-function setPfSpirit(key) {
-  const m = MEMBERS.find(x=>x.mid===_curMid); if (!m) return;
-  m.spiritLevel = key;
-  document.querySelectorAll('.sp-btn').forEach(b=>b.classList.remove('on'));
+// 신앙유형
+function setFaithType(val) {
+  const d=DETAIL[_curMid]; if(d) d.faithType=val;
+  document.querySelectorAll('#ft-row .lv').forEach(b=>{b.classList.remove('on','lv-a');});
+  event.currentTarget.classList.add('on','lv-a');
+  document.getElementById('ft-note-wrap').style.display = val==='부분가족신앙'?'block':'none';
+}
+function setLv(btn,field,val,cls,rowId) {
+  document.querySelectorAll('#'+rowId+' .lv').forEach(b=>{b.classList.remove('on','lv-g','lv-o','lv-r','lv-a');});
+  btn.classList.add('on','lv-'+cls);
+  const d=DETAIL[_curMid]; if(d) d[field]=val;
+}
+function setSpirit(key) {
+  const m=MEMBERS.find(x=>x.mid===_curMid); if(m) m.spiritLevel=key;
+  document.querySelectorAll('.sp-btn-v').forEach(b=>b.classList.remove('on'));
   event.currentTarget.classList.add('on');
-  const sp = SP[key];
-  const disp = document.getElementById('pf-sp-disp');
-  if (disp) { disp.textContent=sp.label; disp.style.cssText='border-radius:6px;padding:6px 14px;font-size:.82rem;font-weight:600;text-align:center;margin-bottom:8px;background:'+sp.bg+';color:'+sp.co+';border:.5px solid '+sp.bd; }
 }
-
-function setPfLevel(btn, field, val, cls) {
-  const parent = btn.closest('.level-row');
-  parent.querySelectorAll('.lv-btn').forEach(b=>{ b.classList.remove('on','lv-on-g','lv-on-o','lv-on-r','lv-on-a'); });
-  btn.classList.add('on','lv-on-'+cls);
-  const d = DETAIL[_curMid]; if(d) d[field]=val;
-}
-
 function addFriend() {
-  const d = DETAIL[_curMid]; if(!d) return;
-  if (!d.relFriends) d.relFriends=[];
+  const d=DETAIL[_curMid]; if(!d) return;
+  if(!d.relFriends) d.relFriends=[];
   d.relFriends.push({이름:'',연락처:'',소속:'',관계:''});
   openProfile(_curMid);
 }
-
+function delFriend(i) {
+  const d=DETAIL[_curMid]; if(!d||!d.relFriends) return;
+  d.relFriends.splice(i,1); openProfile(_curMid);
+}
 function saveProfile() {
-  const m = MEMBERS.find(x=>x.mid===_curMid);
-  const d = DETAIL[_curMid]||{};
-  ['birth','phone','workplace','mbti'].forEach(f => {
-    const el = document.getElementById('pf-'+f);
-    if (el) d[f]=el.value;
-  });
-  ['pf-wnote','pf-caution','pf-prayer2','pf-vt','pf-pl','pf-plc'].forEach(id=>{
-    const el = document.getElementById(id); if(el) d[id.replace('pf-','')]=el.value;
-  });
-  if (m) {
-    const newGoal = document.querySelector('.goal-inp');
-  }
   alert('✅ 저장됐어요!\n(체험판은 새로고침 시 초기화됩니다)');
   showScreen('main'); renderFaith();
 }
 function closeProfile() { showScreen('main'); }
 
-function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// 헬퍼
+function fi(label,id,val){return'<div class="pf-f"><div class="pf-label">'+label+'</div><input class="pf-inp" id="'+id+'" value="'+e(val||'')+'" placeholder="'+label+'"></div>';}
+function ta(label,id,val){return'<div class="pf-f full"><div class="pf-label">'+label+'</div><textarea class="pf-inp pf-ta" id="'+id+'">'+e(val||'')+'</textarea></div>';}
+function e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 </script>
 </body>
 </html>
