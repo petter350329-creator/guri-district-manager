@@ -53,33 +53,25 @@
   <div class="hdr">
     <div class="logo">⛪</div>
     <h1>구역 관리</h1>
-    <div class="hdr-right"><span class="uname" onclick="openNickModal()"></span></div>
+    <div class="hdr-right"><span class="uname"></span></div>
   </div>
   <div class="main-layout">
     <div class="main-content">
       <div class="tab-pane active" id="tab-faith"><div id="faith-content"><div class="loading">불러오는 중…</div></div></div>
       <div class="tab-pane" id="tab-evang"><div id="evang-content"></div></div>
       <div class="tab-pane" id="tab-visit"><div id="visit-content"></div></div>
-      <div class="tab-pane chairman-only" id="tab-stats"><div id="stats-content"></div></div>
+      <div class="tab-pane region-only" id="tab-stats"><div id="stats-content"></div></div>
       <div class="tab-pane" id="tab-settings">
         <div class="settings-body">
-          <div class="settings-section">
-            <div class="settings-item" onclick="openNickModal()">
-              <span class="si-icon">✏️</span><span class="si-label">닉네임 변경</span>
-              <span class="uname" style="font-size:.78rem;color:var(--muted)"></span><span class="si-arr">›</span>
-            </div>
-          </div>
-          <div class="settings-section leader-only">
-            <div class="settings-item" id="btn-member-settings">
-              <span class="si-icon">👥</span><span class="si-label">구역원 관리</span><span class="si-arr">›</span>
-            </div>
-          </div>
           <div class="settings-section region-only">
             <div class="settings-item" onclick="openAssignModal()">
               <span class="si-icon">📌</span><span class="si-label">구역장 배정</span><span class="si-arr">›</span>
             </div>
             <div class="settings-item" onclick="openUserMgmt()">
               <span class="si-icon">🔑</span><span class="si-label">멤버 · 승인 관리</span><span class="si-arr">›</span>
+            </div>
+            <div class="settings-item" onclick="openTransferMgmt()">
+              <span class="si-icon">📦</span><span class="si-label">구역원 이관 승인</span><span class="si-arr">›</span>
             </div>
           </div>
           <div class="settings-section sa-only">
@@ -100,7 +92,7 @@
       <button class="tab-btn active" data-tab="faith" onclick="switchTab('faith')"><span class="tab-icon">📋</span><span class="tab-label">신앙관리</span></button>
       <button class="tab-btn" data-tab="evang" onclick="switchTab('evang')"><span class="tab-icon">🌱</span><span class="tab-label">전도</span></button>
       <button class="tab-btn" data-tab="visit" onclick="switchTab('visit')"><span class="tab-icon">🫂</span><span class="tab-label">심방</span></button>
-      <button class="tab-btn chairman-only" data-tab="stats" onclick="switchTab('stats')"><span class="tab-icon">📊</span><span class="tab-label">통계</span></button>
+      <button class="tab-btn region-only" data-tab="stats" onclick="switchTab('stats')"><span class="tab-icon">📊</span><span class="tab-label">통계</span></button>
       <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')"><span class="tab-icon">⚙️</span><span class="tab-label">설정</span></button>
     </nav>
   </div>
@@ -111,6 +103,8 @@
   <div class="profile-hdr">
     <button class="btn btn-ghost btn-sm" onclick="closeProfile()">← 돌아가기</button>
     <span id="profile-name" style="font-size:.95rem;font-weight:600;flex:1;text-align:center"></span>
+    <div id="manager-stamp-area" style="flex-shrink:0"></div>
+    <button class="btn btn-sm" id="btn-transfer-profile" style="background:rgba(167,139,250,.2);color:#a78bfa;display:none" onclick="openTransferModal()">이관</button>
     <button class="btn btn-sm" id="btn-save-profile" style="background:var(--accent);color:#fff" onclick="saveProfile()">저장</button>
   </div>
   <div class="profile-body">
@@ -301,6 +295,42 @@
     <h3>닉네임 변경</h3>
     <input type="text" id="inp-nickname" placeholder="닉네임 입력">
     <div class="modal-btns"><button class="ok" onclick="saveNickname()">저장</button><button class="cancel" onclick="closeNickModal()">취소</button></div>
+  </div>
+</div>
+
+<!-- 이관 승인 관리 모달 -->
+<div class="modal-bg" id="modal-transfer-mgmt">
+  <div class="modal modal-wide">
+    <h3>📦 구역원 이관 승인</h3>
+    <div class="modal-scroll" id="transfer-mgmt-list"></div>
+    <div style="text-align:right;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="closeTransferMgmt()">닫기</button></div>
+  </div>
+</div>
+
+<!-- 저장 확인 모달 (8번) -->
+<div class="modal-bg" id="modal-save-confirm">
+  <div class="modal" style="width:300px;text-align:center">
+    <div style="font-size:1.2rem;margin-bottom:8px">💾</div>
+    <h3 style="margin-bottom:6px">저장하지 않은 변경사항이 있어요</h3>
+    <p style="font-size:.78rem;color:var(--muted);margin-bottom:16px">어떻게 할까요?</p>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="btn btn-primary btn-sm" id="btn-sc-save" style="width:100%;padding:10px">저장하고 나가기</button>
+      <button class="btn btn-ghost btn-sm" id="btn-sc-discard" style="width:100%;padding:10px">저장 안 하고 나가기</button>
+      <button class="btn btn-ghost btn-sm" id="btn-sc-cancel" style="width:100%;padding:10px;color:var(--muted)">계속 편집</button>
+    </div>
+  </div>
+</div>
+
+<!-- 구역원 이관 모달 (8번) -->
+<div class="modal-bg" id="modal-transfer">
+  <div class="modal" style="width:320px">
+    <h3>📦 구역원 이관</h3>
+    <p class="modal-hint">이관할 구역을 선택하면 기존 구역 임원에게 승인 요청이 전달됩니다.</p>
+    <select id="sel-transfer-did" style="width:100%;margin-bottom:14px"></select>
+    <div class="modal-btns">
+      <button class="ok" onclick="submitTransfer()">이관 요청</button>
+      <button class="cancel" onclick="closeTransferModal()">취소</button>
+    </div>
   </div>
 </div>
 
