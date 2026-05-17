@@ -4,7 +4,7 @@ import { openWorshipPop, openMemoPop, openDynPop, openWeekPicker } from './popup
 import { openListMgmt } from './settings.js';
 import { openProfile } from './profile.js';
 import { openMemberModal } from './members.js';
-import { ref, set, get, update } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import { ref, set, get, update, remove } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
 export async function initFaithTab() {
   const el = document.getElementById('faith-content');
