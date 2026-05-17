@@ -103,22 +103,36 @@
   <div class="profile-hdr">
     <button class="btn btn-ghost btn-sm" onclick="closeProfile()">← 돌아가기</button>
     <span id="profile-name" style="font-size:.95rem;font-weight:600;flex:1;text-align:center"></span>
-    <div id="manager-stamp-area" style="flex-shrink:0"></div>
     <button class="btn btn-sm" id="btn-transfer-profile" style="background:rgba(167,139,250,.2);color:#a78bfa;display:none" onclick="openTransferModal()">이관</button>
     <button class="btn btn-sm" id="btn-save-profile" style="background:var(--accent);color:#fff" onclick="saveProfile()">저장</button>
   </div>
   <div class="profile-body">
     <div class="profile-section">
       <div class="profile-section-title">✨ 심령 단계</div>
-      <div id="spirit-display" style="display:none"></div>
-      <div class="spirit-btns">
-        <button class="spirit-btn pf-editable" data-key="fly"   onclick="setSpiritLevel('fly')"   style="background:rgba(167,139,250,.18);color:#a78bfa;border-color:rgba(167,139,250,.5)">🦋 날라다녀</button>
-        <button class="spirit-btn pf-editable" data-key="run"   onclick="setSpiritLevel('run')"   style="background:rgba(108,143,255,.18);color:#6c8fff;border-color:rgba(108,143,255,.5)">🏃 뛰고있어</button>
-        <button class="spirit-btn pf-editable" data-key="walk"  onclick="setSpiritLevel('walk')"  style="background:rgba(74,222,128,.18);color:#4ade80;border-color:rgba(74,222,128,.5)">🚶 걷고있어</button>
-        <button class="spirit-btn pf-editable" data-key="lay"   onclick="setSpiritLevel('lay')"   style="background:rgba(246,169,53,.18);color:#f6a935;border-color:rgba(246,169,53,.5)">😪 누워있어</button>
-        <button class="spirit-btn pf-editable" data-key="sleep" onclick="setSpiritLevel('sleep')" style="background:rgba(248,113,113,.18);color:#f87171;border-color:rgba(248,113,113,.5)">😴 자고있어</button>
+      <div class="spirit-photo-row">
+        <!-- 사진 업로드 -->
+        <div class="photo-upload-wrap">
+          <label class="photo-label" for="photo-input">
+            <div id="pf-photo-wrap" class="photo-box">
+              <span class="photo-placeholder">📷<br><span style="font-size:.65rem;margin-top:4px;display:block">사진 추가</span></span>
+            </div>
+          </label>
+          <input type="file" id="photo-input" accept="image/*" style="display:none" onchange="handlePhotoUpload(this)">
+          <div style="font-size:.62rem;color:var(--muted);text-align:center;margin-top:4px">클릭하여 업로드</div>
+        </div>
+        <!-- 심령 단계 -->
+        <div style="flex:1;min-width:0">
+          <div id="spirit-display" style="display:none"></div>
+          <div class="spirit-btns">
+            <button class="spirit-btn pf-editable" data-key="fly"   onclick="setSpiritLevel('fly')"   style="background:rgba(167,139,250,.18);color:#a78bfa;border-color:rgba(167,139,250,.5)">🦋 날라다녀</button>
+            <button class="spirit-btn pf-editable" data-key="run"   onclick="setSpiritLevel('run')"   style="background:rgba(108,143,255,.18);color:#6c8fff;border-color:rgba(108,143,255,.5)">🏃 뛰고있어</button>
+            <button class="spirit-btn pf-editable" data-key="walk"  onclick="setSpiritLevel('walk')"  style="background:rgba(74,222,128,.18);color:#4ade80;border-color:rgba(74,222,128,.5)">🚶 걷고있어</button>
+            <button class="spirit-btn pf-editable" data-key="lay"   onclick="setSpiritLevel('lay')"   style="background:rgba(246,169,53,.18);color:#f6a935;border-color:rgba(246,169,53,.5)">😪 누워있어</button>
+            <button class="spirit-btn pf-editable" data-key="sleep" onclick="setSpiritLevel('sleep')" style="background:rgba(248,113,113,.18);color:#f87171;border-color:rgba(248,113,113,.5)">😴 자고있어</button>
+          </div>
+          <input type="hidden" id="pf-spiritLevel">
+        </div>
       </div>
-      <input type="hidden" id="pf-spiritLevel">
     </div>
     <div class="profile-section">
       <div class="profile-section-title">📋 기본 정보</div>
@@ -221,6 +235,10 @@
         <div class="pf-field full"><label class="pf-label">기도제목</label><textarea id="pf-prayer" class="pf-input pf-textarea pf-editable" placeholder="현재 기도제목"></textarea></div>
         <div class="pf-field full"><label class="pf-label">자유 메모</label><textarea id="pf-notes" class="pf-input pf-textarea pf-editable" placeholder="기타 전달 사항"></textarea></div>
       </div>
+    </div>
+    <div class="profile-section">
+      <div class="profile-section-title">🔗 지체 관계</div>
+      <div id="rel-section-body"></div>
     </div>
     <div class="profile-section">
       <div class="profile-section-title">👤 이전 담당자</div>
