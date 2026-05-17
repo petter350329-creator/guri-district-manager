@@ -1,6 +1,6 @@
 import { db, state, SPIRIT_LEVELS, canEdit, isRegion } from './config.js';
 import { showScreen, showToast } from './utils.js';
-import { ref, set, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import { ref, set, get, update } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
 const PF_FIELDS = [
   'birth','baptismDate','phone','address','workplace',
@@ -16,6 +16,14 @@ const PF_FIELDS = [
 ];
 
 let profileDid = '', profileMid = '';
+let _savedSnapshot = '';
+
+function getFormSnapshot() {
+  const data = {};
+  PF_FIELDS.forEach(f => { const el = document.getElementById('pf-' + f); if (el) data[f] = el.value.trim(); });
+  return JSON.stringify(data);
+}
+function isDirty() { return canEdit() && getFormSnapshot() !== _savedSnapshot; }
 
 export async function openProfile(did, mid, name) {
   profileDid = did; profileMid = mid;
@@ -26,31 +34,68 @@ export async function openProfile(did, mid, name) {
     get(ref(db, 'members/' + did + '/' + mid))
   ]);
   const d = detailSnap.val() || {};
-  // 연락처 자동 연동
   if (!d.phone && memberSnap.exists()) d.phone = memberSnap.val()?.phone || '';
 
   PF_FIELDS.forEach(f => { const el = document.getElementById('pf-' + f); if (el) el.value = d[f] || ''; });
 
-  // 수준 버튼 복원
   ['worshipLevel','faithLevel','eduLevel'].forEach(f => {
     document.querySelectorAll('.level-btn[data-field="' + f + '"]').forEach(b => b.classList.toggle('level-on', b.dataset.val === (d[f]||'')));
   });
-  // 신앙 유형 복원
   document.querySelectorAll('.level-btn[data-field="faithType"]').forEach(b => b.classList.toggle('level-on', b.dataset.val === (d.faithType||'')));
   const fnWrap = document.getElementById('faith-type-note-wrap');
   if (fnWrap) fnWrap.style.display = d.faithType === '부분가족신앙' ? 'block' : 'none';
 
-  // 심령 단계 복원
   const sk = d.spiritLevel || '';
   document.querySelectorAll('.spirit-btn').forEach(b => b.classList.toggle('spirit-on', b.dataset.key === sk));
   setSpiritDisplay(sk);
 
-  // 편집 가능 여부
   document.querySelectorAll('.pf-editable').forEach(el => {
     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.readOnly = !canEdit();
   });
   document.getElementById('btn-save-profile').style.display = canEdit() ? '' : 'none';
+  document.getElementById('btn-transfer-profile').style.display = canEdit() ? '' : 'none';
+
+  renderStamp(d.managerStamp || null);
+  _savedSnapshot = getFormSnapshot();
   showScreen('profile');
+}
+
+// ── 10번: 임원 확인 도장 ──
+function renderStamp(stamp) {
+  const el = document.getElementById('manager-stamp-area');
+  if (!el) return;
+  if (stamp) {
+    const dt = new Date(stamp.timestamp);
+    const dateStr = dt.getFullYear() + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + String(dt.getDate()).padStart(2,'0');
+    el.innerHTML =
+      '<div class="stamp-box stamp-done">'
+      + '<div class="stamp-mark">인</div>'
+      + '<div class="stamp-name">' + (stamp.name||'임원') + '</div>'
+      + '<div class="stamp-date">' + dateStr + '</div>'
+      + '</div>';
+  } else {
+    el.innerHTML =
+      '<div class="stamp-box stamp-empty' + (isRegion() ? ' stamp-clickable' : '') + '" id="btn-stamp-apply">'
+      + '<div class="stamp-mark">인</div>'
+      + '<div class="stamp-label">미확인</div>'
+      + '</div>';
+    if (isRegion()) {
+      el.querySelector('#btn-stamp-apply').addEventListener('click', applyStamp);
+    }
+  }
+}
+
+async function applyStamp() {
+  if (!isRegion()) return;
+  if (!confirm('확인 도장을 찍을까요?')) return;
+  const stamp = {
+    uid: state.currentUser.uid,
+    name: state.userNickname || state.currentUser.displayName || '임원',
+    timestamp: Date.now()
+  };
+  await update(ref(db, 'memberDetail/' + profileDid + '/' + profileMid), { managerStamp: stamp });
+  renderStamp(stamp);
+  showToast('✅ 확인 도장이 찍혔어요');
 }
 
 function setSpiritDisplay(key) {
@@ -67,7 +112,14 @@ function setSpiritDisplay(key) {
 }
 
 export function setupProfileButtons() {
-  window.closeProfile = () => showScreen('main');
+  window.closeProfile = async () => {
+    if (isDirty()) {
+      const choice = await showSaveConfirm();
+      if (choice === 'save')   { await doSaveProfile(); showToast('✅ 저장됐어요'); }
+      else if (choice === 'cancel') { return; }
+    }
+    showScreen('main');
+  };
 
   window.setLevel = (field, val) => {
     if (!canEdit()) return;
@@ -91,9 +143,61 @@ export function setupProfileButtons() {
   };
 
   window.saveProfile = async () => {
-    const data = {};
-    PF_FIELDS.forEach(f => { const el = document.getElementById('pf-' + f); if (el) data[f] = el.value.trim(); });
-    await set(ref(db, 'memberDetail/' + profileDid + '/' + profileMid), data);
+    await doSaveProfile();
     showToast('✅ 저장됐어요');
   };
+
+  window.openTransferModal = async () => {
+    await loadTransferOptions();
+    document.getElementById('modal-transfer').classList.add('show');
+  };
+  window.closeTransferModal = () => document.getElementById('modal-transfer').classList.remove('show');
+
+  window.submitTransfer = async () => {
+    const toDid = document.getElementById('sel-transfer-did').value;
+    if (!toDid) { showToast('이관할 구역을 선택해주세요'); return; }
+    const name = document.getElementById('profile-name').textContent;
+    await set(ref(db, 'transferRequests/' + profileMid), {
+      fromDid: profileDid, toDid, name,
+      requestedAt: Date.now(),
+      requestedBy: state.currentUser.uid
+    });
+    document.getElementById('modal-transfer').classList.remove('show');
+    showToast('✅ 이관 요청 전송됨. 기존 구역 임원 승인 후 이관됩니다.');
+  };
+}
+
+async function doSaveProfile() {
+  const data = {};
+  PF_FIELDS.forEach(f => { const el = document.getElementById('pf-' + f); if (el) data[f] = el.value.trim(); });
+  await set(ref(db, 'memberDetail/' + profileDid + '/' + profileMid), data);
+  _savedSnapshot = getFormSnapshot();
+}
+
+function showSaveConfirm() {
+  return new Promise(resolve => {
+    const modal = document.getElementById('modal-save-confirm');
+    if (!modal) { resolve('discard'); return; }
+    modal.classList.add('show');
+    function cleanup() {
+      modal.classList.remove('show');
+      modal.querySelector('#btn-sc-save').onclick    = null;
+      modal.querySelector('#btn-sc-discard').onclick = null;
+      modal.querySelector('#btn-sc-cancel').onclick  = null;
+    }
+    modal.querySelector('#btn-sc-save').onclick    = () => { cleanup(); resolve('save'); };
+    modal.querySelector('#btn-sc-discard').onclick = () => { cleanup(); resolve('discard'); };
+    modal.querySelector('#btn-sc-cancel').onclick  = () => { cleanup(); resolve('cancel'); };
+  });
+}
+
+async function loadTransferOptions() {
+  const el = document.getElementById('sel-transfer-did');
+  const opts = Object.entries(state.districtsCache)
+    .filter(([did]) => did !== profileDid)
+    .map(([did, d]) => {
+      const rn = state.regionsCache[d.regionId]?.name || '';
+      return '<option value="' + did + '">' + (rn ? rn + ' · ' : '') + d.name + '</option>';
+    }).join('');
+  el.innerHTML = '<option value="">구역 선택</option>' + opts;
 }
