@@ -119,13 +119,14 @@ export async function loadFaithWeek() {
   const stampBtnHtml = isRegion()
     ? (weekStamp
         ? '<button class="stamp-week-btn stamp-week-done" id="btn-week-stamp">'
-          + '<span class="swb-label">임원 확인 ✓</span>'
+          + '<span class="swb-icon">🌸</span>'
           + '<span class="swb-name">' + (weekStamp.name||'임원') + '</span>'
+          + '<span class="swb-check">임원확인</span>'
           + '<span class="swb-date">' + fmtStampDate(weekStamp.timestamp) + '</span>'
           + '</button>'
         : '<button class="stamp-week-btn stamp-week-empty" id="btn-week-stamp">🔏 임원 확인</button>')
     : (weekStamp
-        ? '<span class="stamp-week-badge">✓ ' + (weekStamp.name||'임원') + ' · ' + fmtStampDate(weekStamp.timestamp) + '</span>'
+        ? '<span class="stamp-week-badge">🌸 ' + (weekStamp.name||'임원') + ' · ' + fmtStampDate(weekStamp.timestamp) + '</span>'
         : '');
 
   let html =
@@ -302,8 +303,13 @@ async function applyWeekStamp(did) {
   const dateStr = today.getFullYear() + '.' + String(today.getMonth()+1).padStart(2,'0') + '.' + String(today.getDate()).padStart(2,'0');
   const stamp = { uid: state.currentUser.uid, name: state.userNickname || '임원', timestamp: Date.now(), date: dateStr };
   await set(ref(db, 'weeklyStamp/' + did + '/' + state.currentWeekId), stamp);
-  showStampSplash(stamp.name, dateStr);
-  setTimeout(() => loadFaithWeek(), 400);
+  await loadFaithWeek();
+  // 위에서 쾅 찍히는 애니메이션
+  const btn = document.getElementById('btn-week-stamp');
+  if (btn) {
+    btn.classList.add('stamp-hitting');
+    btn.addEventListener('animationend', () => btn.classList.remove('stamp-hitting'), { once: true });
+  }
 }
 
 async function removeWeekStamp(did) {
@@ -311,19 +317,4 @@ async function removeWeekStamp(did) {
   if (!confirm('도장을 취소할까요?')) return;
   await remove(ref(db, 'weeklyStamp/' + did + '/' + state.currentWeekId));
   loadFaithWeek();
-}
-
-function showStampSplash(name, dateStr) {
-  const existing = document.getElementById('stamp-splash');
-  if (existing) existing.remove();
-  const el = document.createElement('div');
-  el.id = 'stamp-splash';
-  el.innerHTML =
-    '<div class="stamp-splash-inner">'
-    + '<div class="ss-date">' + dateStr + '</div>'
-    + '<div class="ss-check">임원 확인</div>'
-    + '<div class="ss-name">' + name + '</div>'
-    + '</div>';
-  document.body.appendChild(el);
-  setTimeout(() => { if (el.parentNode) el.remove(); }, 1600);
 }
