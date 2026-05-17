@@ -49,6 +49,13 @@ export const ROLE_LABEL = {
   region_admin: '임원', district_leader: '구역장'
 };
 
+// ── 지역별 담당 임원 ──
+export const REGION_ADMIN_NAME = {
+  '창조': '고현정',
+  '구리': '김수연',
+  '남양주': '이진',
+};
+
 // ── 권한 헬퍼 ──
 export const isSA       = () => state.userRole === 'superadmin';
 export const isChairman = () => ['superadmin','chairman'].includes(state.userRole);
