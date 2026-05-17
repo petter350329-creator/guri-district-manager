@@ -3,11 +3,11 @@ import { showToast } from './utils.js';
 import { ref, set, get, push, remove, update } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
 // ── 목록 관리 ──
-let mgmtDid = '', mgmtType = '';
+let mgmtDid = '', mgmtType = '', mgmtOnDone = null;
 
-export async function openListMgmt(type, did) {
+export async function openListMgmt(type, did, onDone = null) {
   if (!isRegion()) { showToast('권한이 없습니다'); return; }
-  mgmtDid = did; mgmtType = type;
+  mgmtDid = did; mgmtType = type; mgmtOnDone = onDone;
   const labels = { edu:'📖 교육', service:'🤝 봉사', extra:'💰 기타헌금' };
   document.getElementById('list-mgmt-title').textContent = labels[type] + ' 목록 관리';
   await refreshMgmtList();
@@ -15,7 +15,7 @@ export async function openListMgmt(type, did) {
   document.getElementById('modal-listmgmt').classList.add('show');
 }
 async function refreshMgmtList() {
-  const paths = { edu:'eduList/'+mgmtDid, service:'serviceList/'+mgmtDid, extra:'extraOfferings/'+mgmtDid };
+  const paths = { edu:'globalEduList', service:'globalServiceList', extra:'globalExtraOfferings' };
   const snap  = await get(ref(db, paths[mgmtType]));
   const items = snap.val() || {};
   const el    = document.getElementById('mgmt-list-inner');
@@ -28,9 +28,10 @@ async function refreshMgmtList() {
   ).join('');
   el.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
     if (!confirm('삭제할까요?')) return;
-    const paths2 = { edu:'eduList/'+mgmtDid, service:'serviceList/'+mgmtDid, extra:'extraOfferings/'+mgmtDid };
+    const paths2 = { edu:'globalEduList', service:'globalServiceList', extra:'globalExtraOfferings' };
     await remove(ref(db, paths2[mgmtType] + '/' + btn.dataset.del));
     await refreshMgmtList();
+    if (mgmtOnDone) mgmtOnDone();
   }));
 }
 
@@ -44,33 +45,87 @@ async function loadUserList() {
   const users = uSnap.val()||{}, reqs = rSnap.val()||{};
   const visR  = Object.entries(reqs).filter(([,u]) => isChairman() || (state.userRole==='region_admin' && u.regionId===state.userRegionId));
   const visU  = Object.entries(users).filter(([,u]) => isChairman() || (state.userRole==='region_admin' && u.regionId===state.userRegionId));
+
   let html = '';
+
+  // ── 승인 대기 (최상단 고정) ──
   if (visR.length) {
-    html += '<div class="section-label danger-label">⏳ 승인 대기 (' + visR.length + ')</div>';
+    html += '<div class="section-label danger-label" style="margin-bottom:8px">⏳ 승인 대기 (' + visR.length + ')</div>';
     html += visR.map(([uid, u]) =>
-      '<div class="user-row"><div class="user-info"><div class="user-name">' + (u.name||uid) + '</div><div class="user-sub">' + (u.email||'') + '</div></div>'
+      '<div class="user-row"><div class="user-info"><div class="user-name">' + (u.name||uid) + '</div><div class="user-sub">' + (u.email||'') + ' · ' + (u.regionId||'') + '</div></div>'
       + '<div class="user-actions">'
       + (isChairman() ? '<select id="req-role-' + uid + '" class="small-select"><option value="district_leader">구역장</option><option value="region_admin">임원</option></select>' : '')
       + '<button class="btn-xs" data-approve="' + uid + '">수락</button>'
       + '<button class="btn-danger-xs" data-reject="' + uid + '">거절</button>'
       + '</div></div>'
     ).join('');
+    html += '<hr style="border-color:var(--border);margin:12px 0">';
   }
-  html += '<div class="section-label" style="margin-top:12px">👥 멤버</div>';
-  html += visU.map(([uid, u]) =>
-    '<div class="user-row"><div class="user-info"><div class="user-name">' + (u.nickname||u.name||uid) + '</div><div class="user-sub">' + (state.districtsCache[u.districtId]?.name||'미배정') + '</div></div>'
-    + (isChairman()
-      ? '<div class="user-actions"><select class="small-select" data-role-uid="' + uid + '">'
-        + ['district_leader','region_admin','chairman','superadmin'].map(r =>
-            '<option value="' + r + '"' + (u.role===r?' selected':'') + '>' + ROLE_LABEL[r] + '</option>'
-          ).join('')
-        + '</select><button class="btn-danger-xs" data-del-user="' + uid + '">삭제</button></div>'
-      : '<span class="role-badge">' + (ROLE_LABEL[u.role]||u.role) + '</span>')
-    + '</div>'
-  ).join('') || '<div style="padding:12px;color:var(--muted);font-size:.83rem">없음</div>';
+
+  // ── 지역별 accordion ──
+  // 지역 목록 수집
+  const regionMap = {};  // rid → name
+  Object.values(state.regionsCache).length
+    ? Object.entries(state.regionsCache).forEach(([rid, r]) => { regionMap[rid] = r.name; })
+    : null;
+
+  // 멤버를 지역별로 분류
+  const byRegion = {};   // rid → [uid, user][]
+  const noRegion = [];
+  visU.forEach(([uid, u]) => {
+    const rid = u.regionId || '';
+    if (rid) {
+      if (!byRegion[rid]) byRegion[rid] = [];
+      byRegion[rid].push([uid, u]);
+    } else {
+      noRegion.push([uid, u]);
+    }
+  });
+
+  function memberRow([uid, u]) {
+    return '<div class="user-row"><div class="user-info"><div class="user-name">' + (u.nickname||u.name||uid) + '</div>'
+      + '<div class="user-sub">' + (state.districtsCache[u.districtId]?.name||'미배정') + ' · ' + (ROLE_LABEL[u.role]||u.role) + '</div></div>'
+      + (isChairman()
+        ? '<div class="user-actions"><select class="small-select" data-role-uid="' + uid + '">'
+          + ['district_leader','region_admin','chairman','superadmin'].map(r =>
+              '<option value="' + r + '"' + (u.role===r?' selected':'') + '>' + ROLE_LABEL[r] + '</option>'
+            ).join('')
+          + '</select><button class="btn-danger-xs" data-del-user="' + uid + '">삭제</button></div>'
+        : '')
+      + '</div>';
+  }
+
+  // 지역별 탭 렌더
+  const rids = Object.keys(byRegion).sort((a, b) => (regionMap[a]||a).localeCompare(regionMap[b]||b));
+  rids.forEach((rid, idx) => {
+    const rName = regionMap[rid] || rid;
+    const members = byRegion[rid];
+    const openClass = idx === 0 ? ' open' : '';
+    html +=
+      '<div class="region-accordion' + openClass + '" data-rid="' + rid + '">'
+      + '<div class="region-acc-header">'
+      + '<span>' + rName + '</span><span class="acc-count">' + members.length + '명</span><span class="acc-arrow">' + (idx===0?'▲':'▼') + '</span>'
+      + '</div>'
+      + '<div class="region-acc-body">' + members.map(memberRow).join('') + '</div>'
+      + '</div>';
+  });
+
+  if (noRegion.length) {
+    html +=
+      '<div class="region-accordion" data-rid="_none">'
+      + '<div class="region-acc-header"><span>미분류</span><span class="acc-count">' + noRegion.length + '명</span><span class="acc-arrow">▼</span></div>'
+      + '<div class="region-acc-body">' + noRegion.map(memberRow).join('') + '</div>'
+      + '</div>';
+  }
+
+  if (!visU.length && !visR.length) {
+    html += '<div style="padding:12px;color:var(--muted);font-size:.83rem">없음</div>';
+  }
 
   const el = document.getElementById('user-list');
   el.innerHTML = html;
+
+  // 이벤트 바인딩
   el.querySelectorAll('[data-approve]').forEach(b => b.addEventListener('click', () => approveUser(b.dataset.approve)));
   el.querySelectorAll('[data-reject]').forEach(b  => b.addEventListener('click', () => rejectUser(b.dataset.reject)));
   el.querySelectorAll('[data-role-uid]').forEach(sel => sel.addEventListener('change', async () => {
@@ -80,6 +135,15 @@ async function loadUserList() {
     if (!confirm('삭제할까요?')) return;
     await remove(ref(db,'users/'+b.dataset.delUser)); loadUserList();
   }));
+
+  // accordion 토글
+  el.querySelectorAll('.region-acc-header').forEach(hdr => {
+    hdr.addEventListener('click', () => {
+      const acc = hdr.closest('.region-accordion');
+      const isOpen = acc.classList.toggle('open');
+      hdr.querySelector('.acc-arrow').textContent = isOpen ? '▲' : '▼';
+    });
+  });
 }
 async function approveUser(uid) {
   const roleEl = document.getElementById('req-role-'+uid);
@@ -92,7 +156,90 @@ async function approveUser(uid) {
 }
 async function rejectUser(uid) { if(!confirm('거절할까요?'))return; await remove(ref(db,'requests/'+uid)); loadUserList(); }
 
-// ── 구역장 배정 ──
+// ── 구역원 이관 승인 ──
+export async function openTransferMgmt() {
+  await loadTransferList();
+  document.getElementById('modal-transfer-mgmt').classList.add('show');
+}
+
+async function loadTransferList() {
+  const [trSnap, mSnap] = await Promise.all([
+    get(ref(db, 'transferRequests')),
+    get(ref(db, 'users'))
+  ]);
+  const reqs = trSnap.val() || {};
+  const el   = document.getElementById('transfer-mgmt-list');
+
+  // 내 지역과 관련된 요청만 (fromDid 또는 toDid가 내 지역)
+  const myDids = new Set(
+    Object.entries(state.districtsCache)
+      .filter(([,d]) => isChairman() || d.regionId === state.userRegionId)
+      .map(([did]) => did)
+  );
+
+  const visReqs = Object.entries(reqs).filter(([, r]) => myDids.has(r.fromDid) || myDids.has(r.toDid));
+
+  if (!visReqs.length) {
+    el.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:.83rem">대기 중인 이관 요청이 없습니다</div>';
+    return;
+  }
+
+  el.innerHTML = visReqs.map(([mid, r]) => {
+    const fromName = state.districtsCache[r.fromDid]?.name || r.fromDid;
+    const toName   = state.districtsCache[r.toDid]?.name   || r.toDid;
+    const dt = new Date(r.requestedAt);
+    const dateStr = dt.getFullYear() + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + String(dt.getDate()).padStart(2,'0');
+    const canApprove = myDids.has(r.fromDid);  // 기존 구역 임원만 승인 가능
+    return '<div class="user-row">'
+      + '<div class="user-info">'
+      + '<div class="user-name">' + (r.name || mid) + '</div>'
+      + '<div class="user-sub">' + fromName + ' → ' + toName + ' · ' + dateStr + '</div>'
+      + '</div>'
+      + (canApprove
+        ? '<div class="user-actions">'
+          + '<button class="btn-xs" data-tr-approve="' + mid + '" data-from="' + r.fromDid + '" data-to="' + r.toDid + '">승인</button>'
+          + '<button class="btn-danger-xs" data-tr-reject="' + mid + '">거절</button>'
+          + '</div>'
+        : '<span class="role-badge" style="font-size:.68rem">상대 구역 승인 대기</span>')
+      + '</div>';
+  }).join('');
+
+  el.querySelectorAll('[data-tr-approve]').forEach(btn => btn.addEventListener('click', async () => {
+    const mid   = btn.dataset.trApprove;
+    const fromDid = btn.dataset.from;
+    const toDid   = btn.dataset.to;
+    if (!confirm('이관을 승인할까요?')) return;
+
+    // 멤버 데이터 이동
+    const [mSnap2, dSnap] = await Promise.all([
+      get(ref(db, 'members/'  + fromDid + '/' + mid)),
+      get(ref(db, 'memberDetail/' + fromDid + '/' + mid))
+    ]);
+    const updates = {};
+    if (mSnap2.exists()) {
+      updates['members/'     + toDid   + '/' + mid] = mSnap2.val();
+      updates['members/'     + fromDid + '/' + mid] = null;
+    }
+    if (dSnap.exists()) {
+      updates['memberDetail/' + toDid   + '/' + mid] = dSnap.val();
+      updates['memberDetail/' + fromDid + '/' + mid] = null;
+    }
+    updates['transferRequests/' + mid] = null;
+
+    await update(ref(db), updates);
+    showToast('✅ 이관 완료됐어요');
+    await loadTransferList();
+  }));
+
+  el.querySelectorAll('[data-tr-reject]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('이관 요청을 거절할까요?')) return;
+    await remove(ref(db, 'transferRequests/' + btn.dataset.trReject));
+    showToast('이관 요청이 거절됐어요');
+    await loadTransferList();
+  }));
+}
+
+
 export async function openAssignModal() {
   await loadAssignList();
   document.getElementById('modal-assign').classList.add('show');
@@ -142,17 +289,19 @@ async function loadDistrictMgmt() {
 }
 
 export function setupSettingsButtons() {
-  window.closeListMgmt     = () => document.getElementById('modal-listmgmt').classList.remove('show');
+  window.closeListMgmt     = () => { document.getElementById('modal-listmgmt').classList.remove('show'); if (mgmtOnDone) mgmtOnDone(); };
   window.closeUserMgmt     = () => document.getElementById('modal-users').classList.remove('show');
   window.closeAssignModal  = () => document.getElementById('modal-assign').classList.remove('show');
   window.closeDistrictMgmt = () => document.getElementById('modal-districts').classList.remove('show');
+  window.closeTransferMgmt = () => document.getElementById('modal-transfer-mgmt').classList.remove('show');
 
   window.addMgmtItem = async () => {
     const name = document.getElementById('inp-mgmt-name').value.trim(); if (!name) return;
-    const paths = { edu:'eduList/'+mgmtDid, service:'serviceList/'+mgmtDid, extra:'extraOfferings/'+mgmtDid };
+    const paths = { edu:'globalEduList', service:'globalServiceList', extra:'globalExtraOfferings' };
     await set(push(ref(db, paths[mgmtType])), { name });
     document.getElementById('inp-mgmt-name').value = '';
     showToast('✅ 추가됐어요'); await refreshMgmtList();
+    if (mgmtOnDone) mgmtOnDone();
   };
   window.addRegion = async () => {
     const n = document.getElementById('inp-region-name').value.trim(); if (!n) return;
