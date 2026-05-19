@@ -105,7 +105,15 @@ export async function loadFaithWeek() {
 
   const dName     = state.districtsCache[did]?.name || '구역';
   const rName     = state.regionsCache[state.districtsCache[did]?.regionId]?.name || '';
-  const active    = Object.entries(members).filter(([,m]) => m.isActive !== false).sort((a,b) => (a[1].order||0)-(b[1].order||0));
+  const spiritOrder = ['fly','run','walk','lay','sleep'];
+  const active    = Object.entries(members).filter(([,m]) => m.isActive !== false).sort((a,b) => {
+    const sa = detailData[a[0]]?.spiritLevel || '';
+    const sb = detailData[b[0]]?.spiritLevel || '';
+    const ia = sa ? spiritOrder.indexOf(sa) : 999;
+    const ib = sb ? spiritOrder.indexOf(sb) : 999;
+    if (ia !== ib) return ia - ib;
+    return (a[1].order||0) - (b[1].order||0);
+  });
   const isCW      = state.currentWeekId === getWeekId();
   const extraCols = Object.entries(state.extraOfferingCache);
   const backBtn   = (isRegion() && state.userRole !== 'district_leader')
