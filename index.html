@@ -60,17 +60,17 @@
       <div class="tab-pane" id="tab-settings">
         <div class="settings-body">
           <div class="settings-section region-only">
-            <div class="settings-item" onclick="openAssignModal()">
-              <span class="si-icon">📌</span><span class="si-label">구역장 배정</span><span class="si-arr">›</span>
+            <div class="settings-item" onclick="openPendingMgmt()">
+              <span class="si-icon">⏳</span><span class="si-label">미승인 · 미분류 멤버</span><span class="si-arr">›</span>
             </div>
-            <div class="settings-item" onclick="openUserMgmt()">
-              <span class="si-icon">🔑</span><span class="si-label">멤버 · 승인 관리</span><span class="si-arr">›</span>
+            <div class="settings-item" onclick="openMemberMgmt()">
+              <span class="si-icon">🔑</span><span class="si-label">멤버 소속 관리</span><span class="si-arr">›</span>
             </div>
             <div class="settings-item" onclick="openTransferMgmt()">
               <span class="si-icon">📦</span><span class="si-label">구역원 이관 승인</span><span class="si-arr">›</span>
             </div>
           </div>
-          <div class="settings-section sa-only">
+          <div class="settings-section chairman-only">
             <div class="settings-item" onclick="openDistrictMgmt()">
               <span class="si-icon">🗺</span><span class="si-label">지역 · 구역 관리</span><span class="si-arr">›</span>
             </div>
@@ -83,7 +83,7 @@
               <span class="si-icon">🚪</span><span class="si-label">로그아웃</span>
             </div>
           </div>
-          <div class="settings-ver">구역 관리 v3.2</div>
+          <div class="settings-ver">구역 관리 v3.3</div>
         </div>
       </div>
     </div>
@@ -273,12 +273,26 @@
   </div>
 </div>
 
-<!-- 멤버 관리 -->
+<!-- 미승인·미분류 멤버 관리 -->
 <div class="modal-bg" id="modal-users">
   <div class="modal modal-wide">
-    <h3>🔑 멤버 · 승인 관리</h3>
-    <div class="modal-scroll" id="user-list"></div>
+    <h3>👥 미승인 · 미분류 멤버</h3>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="pill-tab active" id="pill-pending" onclick="switchPendingTab('pending')">⏳ 미승인</button>
+      <button class="pill-tab" id="pill-unclassified" onclick="switchPendingTab('unclassified')">⚠️ 미분류</button>
+    </div>
+    <div id="pane-pending" class="modal-scroll" id="pending-list"></div>
+    <div id="pane-unclassified" class="modal-scroll" style="display:none" id="unclassified-list"></div>
     <div style="text-align:right;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="closeUserMgmt()">닫기</button></div>
+  </div>
+</div>
+
+<!-- 멤버 소속 관리 -->
+<div class="modal-bg" id="modal-member-mgmt">
+  <div class="modal modal-wide">
+    <h3>🔑 멤버 소속 관리</h3>
+    <div class="modal-scroll" id="member-mgmt-list"></div>
+    <div style="text-align:right;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="closeMemberMgmt()">닫기</button></div>
   </div>
 </div>
 
@@ -287,7 +301,7 @@
   <div class="modal modal-wide">
     <h3>🗺 지역 · 구역 관리</h3>
     <p class="modal-hint">지역 추가</p>
-    <div class="add-row"><input type="text" id="inp-region-name" placeholder="지역 이름"><button class="btn-xs" onclick="addRegion()">추가</button></div>
+    <div class="add-row region-add-row"><input type="text" id="inp-region-name" placeholder="지역 이름"><button class="btn-xs" onclick="addRegion()">추가</button></div>
     <div class="modal-scroll" id="region-list" style="max-height:110px"></div>
     <hr style="border-color:var(--border);margin:10px 0">
     <p class="modal-hint">구역 추가</p>
