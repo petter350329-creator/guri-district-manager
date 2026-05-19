@@ -5,14 +5,17 @@ import { ref, set, get, update } from 'https://www.gstatic.com/firebasejs/10.12.
 const PF_FIELDS = [
   'birth','baptismDate','phone','address','workplace',
   'contactMethod','contactNote','relationship',
-  'mbti','enneagram','personality','workSchedule',
+  'mbti','enneagram','personality','hobby','favoriteFood','workSchedule',
   'worshipPattern','worshipLevel','worshipLevelNote','offeringNote',
+  'pastorFaithLevel','pastorFaithLevelNote',
   'faithLevel','faithLevelNote','faithNote',
-  'eduLevel','eduNote','evangelismNote',
+  'eduLevel','eduNote',
+  'evangelismLevel','evangelismLevelNote',
   'familyNote','economicNote',
   'visitTime','caution','prayer','notes',
   'prevLeader','prevLeaderContact',
-  'spiritLevel','faithType','faithTypeNote'
+  'spiritLevel','faithType','faithTypeNote',
+  'centerClass'
 ];
 
 // 지체관계 역할 정의
@@ -49,7 +52,7 @@ export async function openProfile(did, mid, name) {
 
   PF_FIELDS.forEach(f => { const el = document.getElementById('pf-' + f); if (el) el.value = d[f] || ''; });
 
-  ['worshipLevel','faithLevel','eduLevel'].forEach(f => {
+  ['worshipLevel','faithLevel','eduLevel','pastorFaithLevel','evangelismLevel'].forEach(f => {
     document.querySelectorAll('.level-btn[data-field="' + f + '"]').forEach(b => b.classList.toggle('level-on', b.dataset.val === (d[f]||'')));
   });
   document.querySelectorAll('.level-btn[data-field="faithType"]').forEach(b => b.classList.toggle('level-on', b.dataset.val === (d.faithType||'')));
@@ -150,17 +153,8 @@ function relFriendRow(f, i, editable) {
     + '</div>';
 }
 
-function setSpiritDisplay(key) {
-  const sp   = SPIRIT_LEVELS.find(s => s.key === key);
-  const disp = document.getElementById('spirit-display');
-  if (!disp) return;
-  if (sp) {
-    disp.textContent   = sp.label;
-    disp.style.cssText = 'background:' + sp.bg + ';color:' + sp.color + ';border-color:' + sp.border
-      + ';display:block;border-radius:6px;padding:6px 14px;font-size:.82rem;font-weight:600;border:.5px solid;margin-top:8px;text-align:center';
-  } else {
-    disp.style.display = 'none';
-  }
+function setSpiritDisplay(_key) {
+  // spirit-display 제거됨 — 버튼 자체에서 선택 상태 표시
 }
 
 export function setupProfileButtons() {
