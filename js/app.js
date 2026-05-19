@@ -4,7 +4,7 @@ import { initAuth, setupAuthButtons, applyRoleUI } from './auth.js';
 import { initFaithTab, loadFaithWeek }  from './faith.js';
 import { setupProfileButtons }          from './profile.js';
 import { setupMemberModal }             from './members.js';
-import { openUserMgmt, openAssignModal, openDistrictMgmt, openTransferMgmt, setupSettingsButtons } from './settings.js';
+import { openPendingMgmt, openMemberMgmt, openDistrictMgmt, openTransferMgmt, setupSettingsButtons } from './settings.js';
 
 // ── 초기화 ──
 state.currentWeekId  = getWeekId();
@@ -33,8 +33,8 @@ function placeholder(id, icon, label) {
 }
 
 // ── 설정 탭 버튼 ──
-window.openUserMgmt     = openUserMgmt;
-window.openAssignModal  = openAssignModal;
+window.openPendingMgmt  = openPendingMgmt;
+window.openMemberMgmt   = openMemberMgmt;
 window.openDistrictMgmt = openDistrictMgmt;
 window.openTransferMgmt = openTransferMgmt;
 
@@ -64,7 +64,7 @@ initAuth(enterMain);
 // ── 모달 배경 클릭 닫기 ──
 document.addEventListener('click', e => {
   [
-    'modal-member','modal-users','modal-districts','modal-assign',
+    'modal-member','modal-users','modal-member-mgmt','modal-districts',
     'modal-nickname','modal-listmgmt','modal-transfer-mgmt',
     'modal-save-confirm','modal-transfer'
   ].forEach(id => {
