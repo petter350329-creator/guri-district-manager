@@ -35,22 +35,117 @@ async function refreshMgmtList() {
   }));
 }
 
-// ── 멤버 · 승인 관리 ──
-export async function openUserMgmt() {
+// ── 미승인 · 미분류 멤버 관리 ──
+export async function openPendingMgmt() {
   if (!isRegion()) { showToast('권한이 없습니다'); return; }
-  await loadUserList();
+  await loadPendingAndUnclassified();
   document.getElementById('modal-users').classList.add('show');
 }
 
-async function loadUserList() {
+async function loadPendingAndUnclassified() {
   const [uSnap, rSnap] = await Promise.all([get(ref(db,'users')), get(ref(db,'requests'))]);
   const users = uSnap.val()||{}, reqs = rSnap.val()||{};
-  const visR  = Object.entries(reqs).filter(([,u]) => isChairman() || (state.userRole==='region_admin' && u.regionId===state.userRegionId));
-  const visU  = Object.entries(users)
-    .filter(([uid]) => uid !== state.currentUser?.uid)
-    .filter(([,u]) => isChairman() || (state.userRole==='region_admin' && u.regionId===state.userRegionId));
 
-  // 구역 옵션 헬퍼
+  // 미승인 (requests)
+  const visR = Object.entries(reqs).filter(([,u]) =>
+    isChairman() || (state.userRole==='region_admin' && u.regionId===state.userRegionId));
+
+  // 미분류 (users 중 regionId 없는 자)
+  const unclassified = Object.entries(users)
+    .filter(([uid]) => uid !== state.currentUser?.uid)
+    .filter(([,u]) => !u.regionId || !state.regionsCache[u.regionId]);
+
+  // ── 미승인 탭 ──
+  let pendingHtml = '';
+  if (visR.length) {
+    pendingHtml = visR.map(([uid, u]) => {
+      const rName = state.regionsCache[u.regionId]?.name || u.regionId || '미분류';
+      return '<div class="user-row"><div class="user-info"><div class="user-name">' + (u.name||uid) + '</div>'
+        + '<div class="user-sub">' + (u.email||'') + ' · ' + rName + '</div></div>'
+        + '<div class="user-actions">'
+        + (isChairman() ? '<select id="req-role-'+uid+'" class="small-select"><option value="district_leader">구역장</option><option value="region_admin">임원</option></select>' : '')
+        + '<button class="btn-xs" data-approve="'+uid+'">수락</button>'
+        + '<button class="btn-danger-xs" data-reject="'+uid+'">거절</button>'
+        + '</div></div>';
+    }).join('');
+  } else {
+    pendingHtml = '<div style="padding:12px;color:var(--muted);font-size:.83rem">대기 중인 승인 요청이 없어요</div>';
+  }
+
+  // ── 미분류 탭 ──
+  let unclassifiedHtml = '';
+  if (unclassified.length) {
+    unclassifiedHtml = unclassified.map(([uid, u]) => {
+      const roleLabel = ROLE_LABEL[u.role] || u.role || '역할 없음';
+      let row = '<div class="user-row" style="flex-wrap:wrap;gap:6px">'
+        + '<div class="user-info"><div class="user-name">' + (u.nickname||u.name||uid) + '</div>'
+        + '<div class="user-sub">' + (u.email||'') + ' · ' + roleLabel + '</div></div>'
+        + '<div class="user-actions">';
+      if (isChairman()) {
+        row += '<select class="small-select" data-region-uid="'+uid+'" title="지역 배정">'
+          + '<option value="">(지역 미배정)</option>'
+          + Object.entries(state.regionsCache).map(([rid,r]) =>
+              '<option value="'+rid+'"'+(u.regionId===rid?' selected':'')+'>'+r.name+'</option>'
+            ).join('')
+          + '</select>';
+        row += '<button class="btn-danger-xs" data-del-user="'+uid+'">삭제</button>';
+      }
+      row += '</div></div>';
+      return row;
+    }).join('');
+  } else {
+    unclassifiedHtml = '<div style="padding:12px;color:var(--muted);font-size:.83rem">미분류 멤버가 없어요</div>';
+  }
+
+  document.getElementById('pane-pending').innerHTML = pendingHtml;
+  document.getElementById('pane-unclassified').innerHTML = unclassifiedHtml;
+
+  const el = document.getElementById('modal-users');
+
+  // 미승인 이벤트
+  el.querySelectorAll('[data-approve]').forEach(b => b.addEventListener('click', () => approveUser(b.dataset.approve)));
+  el.querySelectorAll('[data-reject]').forEach(b => b.addEventListener('click', () => rejectUser(b.dataset.reject)));
+
+  // 미분류 지역 변경
+  el.querySelectorAll('[data-region-uid]').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      await update(ref(db,'users/'+sel.dataset.regionUid),{regionId: sel.value||null});
+      showToast('✅ 지역 배정됐어요');
+    });
+  });
+
+  // 미분류 삭제
+  el.querySelectorAll('[data-del-user]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('멤버를 삭제할까요?')) return;
+    await remove(ref(db,'users/'+b.dataset.delUser));
+    showToast('삭제됐어요');
+    loadPendingAndUnclassified();
+  }));
+}
+
+// ── 미승인·미분류 탭 전환 ──
+window.switchPendingTab = (tab) => {
+  document.getElementById('pane-pending').style.display      = tab === 'pending'      ? '' : 'none';
+  document.getElementById('pane-unclassified').style.display = tab === 'unclassified' ? '' : 'none';
+  document.getElementById('pill-pending').classList.toggle('active',      tab === 'pending');
+  document.getElementById('pill-unclassified').classList.toggle('active', tab === 'unclassified');
+};
+
+// ── 멤버 소속 관리 ──
+export async function openMemberMgmt() {
+  if (!isRegion()) { showToast('권한이 없습니다'); return; }
+  await loadMemberMgmt();
+  document.getElementById('modal-member-mgmt').classList.add('show');
+}
+
+async function loadMemberMgmt() {
+  const [uSnap, rSnap, dSnap] = await Promise.all([
+    get(ref(db,'users')), get(ref(db,'regions')), get(ref(db,'districts'))
+  ]);
+  state.regionsCache   = rSnap.val()||{};
+  state.districtsCache = dSnap.val()||{};
+  const users = uSnap.val()||{};
+
   const distOptsByRegion = {};
   Object.entries(state.districtsCache).forEach(([did,d]) => {
     if (!distOptsByRegion[d.regionId]) distOptsByRegion[d.regionId] = [];
@@ -62,161 +157,107 @@ async function loadUserList() {
       + list.map(d => '<option value="'+d.did+'"'+(d.did===selDid?' selected':'')+'>'+d.name+'</option>').join('');
   }
 
-  let html = '';
+  const visU = Object.entries(users)
+    .filter(([uid]) => uid !== state.currentUser?.uid)
+    .filter(([,u]) => u.regionId && state.regionsCache[u.regionId])
+    .filter(([,u]) => isChairman() || (state.userRole==='region_admin' && u.regionId===state.userRegionId));
 
-  // ── 승인 대기 ──
-  if (visR.length) {
-    html += '<div class="section-label danger-label" style="margin-bottom:8px">⏳ 승인 대기 (' + visR.length + ')</div>';
-    html += visR.map(([uid, u]) => {
-      const rName = state.regionsCache[u.regionId]?.name || u.regionId || '미분류';
-      return '<div class="user-row"><div class="user-info"><div class="user-name">' + (u.name||uid) + '</div>'
-        + '<div class="user-sub">' + (u.email||'') + ' · ' + rName + '</div></div>'
-        + '<div class="user-actions">'
-        + (isChairman() ? '<select id="req-role-'+uid+'" class="small-select"><option value="district_leader">구역장</option><option value="region_admin">임원</option></select>' : '')
-        + '<button class="btn-xs" data-approve="'+uid+'">수락</button>'
-        + '<button class="btn-danger-xs" data-reject="'+uid+'">거절</button>'
-        + '</div></div>';
-    }).join('');
-    html += '<hr style="border-color:var(--border);margin:12px 0">';
+  if (!visU.length) {
+    document.getElementById('member-mgmt-list').innerHTML =
+      '<div style="padding:12px;color:var(--muted);font-size:.83rem">없음</div>';
+    return;
   }
 
-  // ── 지역별 멤버 ──
-  const regionMap = {};
-  Object.entries(state.regionsCache).forEach(([rid,r]) => { regionMap[rid] = r.name; });
-
-  const byRegion = {}, noRegion = [];
+  const byRegion = {};
   visU.forEach(([uid, u]) => {
-    const rid = u.regionId || '';
-    if (rid && regionMap[rid]) {
-      if (!byRegion[rid]) byRegion[rid] = [];
-      byRegion[rid].push([uid, u]);
-    } else {
-      noRegion.push([uid, u]);
-    }
+    const rid = u.regionId;
+    if (!byRegion[rid]) byRegion[rid] = [];
+    byRegion[rid].push([uid, u]);
   });
 
-  function memberRow([uid, u]) {
-    const curDistName = state.districtsCache[u.districtId]?.name || '미배정';
-    const roleLabel   = ROLE_LABEL[u.role] || u.role;
-    let row = '<div class="user-row" style="flex-wrap:wrap;gap:6px">'
-      + '<div class="user-info" style="min-width:100px">'
-      + '<div class="user-name">' + (u.nickname||u.name||uid) + '</div>'
-      + '<div class="user-sub">' + curDistName + ' · ' + roleLabel + '</div>'
-      + '</div>';
+  let html = '';
+  const rids = Object.keys(byRegion).sort((a,b) =>
+    (state.regionsCache[a]?.name||a).localeCompare(state.regionsCache[b]?.name||b));
 
-    row += '<div class="user-actions" style="flex-wrap:wrap;gap:4px">';
-
-    // 역할 변경 (회장만)
-    if (isChairman()) {
-      row += '<select class="small-select" data-role-uid="'+uid+'" title="역할">'
-        + ['district_leader','region_admin','chairman','superadmin'].map(r =>
-            '<option value="'+r+'"'+(u.role===r?' selected':'')+'>'+ROLE_LABEL[r]+'</option>'
-          ).join('')
-        + '</select>';
-    }
-
-    // 지역 변경 (회장만)
-    if (isChairman()) {
-      row += '<select class="small-select" data-region-uid="'+uid+'" title="지역">'
-        + '<option value="">(지역 미배정)</option>'
-        + Object.entries(state.regionsCache).map(([rid,r]) =>
-            '<option value="'+rid+'"'+(u.regionId===rid?' selected':'')+'>'+r.name+'</option>'
-          ).join('')
-        + '</select>';
-    }
-
-    // 구역 변경 (임원 이상, district_leader만 해당)
-    if (u.role === 'district_leader') {
-      const forRegion = isChairman() ? (u.regionId||'') : state.userRegionId;
-      row += '<select class="small-select" data-dist-uid="'+uid+'" title="구역">'
-        + buildDistOpts(forRegion, u.districtId)
-        + '</select>';
-    }
-
-    if (isChairman()) {
-      row += '<button class="btn-danger-xs" data-del-user="'+uid+'">삭제</button>';
-    }
-
-    row += '</div></div>';
-    return row;
-  }
-
-  const rids = Object.keys(byRegion).sort((a,b) => (regionMap[a]||a).localeCompare(regionMap[b]||b));
   rids.forEach((rid, idx) => {
-    const rName = regionMap[rid] || rid;
+    const rName = state.regionsCache[rid]?.name || rid;
     const openClass = idx === 0 ? ' open' : '';
+    const rows = byRegion[rid].map(([uid, u]) => {
+      const curDistName = state.districtsCache[u.districtId]?.name || '미배정';
+      const roleLabel   = ROLE_LABEL[u.role] || u.role;
+      let row = '<div class="user-row" style="flex-wrap:wrap;gap:6px">'
+        + '<div class="user-info" style="min-width:100px">'
+        + '<div class="user-name">' + (u.nickname||u.name||uid) + '</div>'
+        + '<div class="user-sub">' + curDistName + ' · ' + roleLabel + '</div>'
+        + '</div><div class="user-actions" style="flex-wrap:wrap;gap:4px">';
+
+      if (isChairman()) {
+        row += '<select class="small-select" data-role-uid="'+uid+'" title="역할">'
+          + ['district_leader','region_admin','chairman','superadmin'].map(r =>
+              '<option value="'+r+'"'+(u.role===r?' selected':'')+'>'+ROLE_LABEL[r]+'</option>').join('')
+          + '</select>';
+        row += '<select class="small-select" data-region-uid="'+uid+'" title="지역">'
+          + '<option value="">(지역 미배정)</option>'
+          + Object.entries(state.regionsCache).map(([r,rv]) =>
+              '<option value="'+r+'"'+(u.regionId===r?' selected':'')+'>'+rv.name+'</option>').join('')
+          + '</select>';
+      }
+      if (u.role === 'district_leader') {
+        const forRegion = isChairman() ? (u.regionId||'') : state.userRegionId;
+        row += '<select class="small-select" data-dist-uid="'+uid+'" title="구역">'
+          + buildDistOpts(forRegion, u.districtId) + '</select>';
+      }
+      if (isChairman()) {
+        row += '<button class="btn-danger-xs" data-del-user="'+uid+'">삭제</button>';
+      }
+      row += '</div></div>';
+      return row;
+    }).join('');
+
     html +=
       '<div class="region-accordion'+openClass+'" data-rid="'+rid+'">'
-      + '<div class="region-acc-header"><span>'+rName+'</span><span class="acc-count">'+byRegion[rid].length+'명</span><span class="acc-arrow">'+(idx===0?'▲':'▼')+'</span></div>'
-      + '<div class="region-acc-body">'+byRegion[rid].map(memberRow).join('')+'</div>'
+      + '<div class="region-acc-header"><span>'+rName+'</span>'
+      + '<span class="acc-count">'+byRegion[rid].length+'명</span>'
+      + '<span class="acc-arrow">'+(idx===0?'▲':'▼')+'</span></div>'
+      + '<div class="region-acc-body">'+rows+'</div>'
       + '</div>';
   });
 
-  // 미분류 — 항상 열어두고 경고색
-  if (noRegion.length) {
-    html +=
-      '<div class="region-accordion open" data-rid="_none">'
-      + '<div class="region-acc-header" style="color:var(--danger)"><span>⚠️ 미분류 (지역 미배정)</span><span class="acc-count">'+noRegion.length+'명</span><span class="acc-arrow">▲</span></div>'
-      + '<div class="region-acc-body">'+noRegion.map(memberRow).join('')+'</div>'
-      + '</div>';
-  }
-
-  if (!visU.length && !visR.length) {
-    html += '<div style="padding:12px;color:var(--muted);font-size:.83rem">없음</div>';
-  }
-
-  const el = document.getElementById('user-list');
+  const el = document.getElementById('member-mgmt-list');
   el.innerHTML = html;
 
-  el.querySelectorAll('[data-approve]').forEach(b => b.addEventListener('click', () => approveUser(b.dataset.approve)));
-  el.querySelectorAll('[data-reject]').forEach(b  => b.addEventListener('click', () => rejectUser(b.dataset.reject)));
-
-  // 역할 변경
   el.querySelectorAll('[data-role-uid]').forEach(sel => sel.addEventListener('change', async () => {
-    const uid = sel.dataset.roleUid, role = sel.value;
-    const updates = { role };
-    if (role !== 'district_leader') updates.districtId = null;
-    await update(ref(db,'users/'+uid), updates);
-    showToast('권한 변경됐어요');
-    await loadUserList();
+    await update(ref(db,'users/'+sel.dataset.roleUid),{role: sel.value});
+    showToast('✅ 역할 변경됐어요');
   }));
-
-  // 지역 변경
   el.querySelectorAll('[data-region-uid]').forEach(sel => sel.addEventListener('change', async () => {
-    await update(ref(db,'users/'+sel.dataset.regionUid), { regionId: sel.value||null, districtId: null });
-    showToast('지역 변경됐어요');
-    await loadUserList();
+    await update(ref(db,'users/'+sel.dataset.regionUid),{regionId: sel.value||null});
+    showToast('✅ 지역 변경됐어요');
   }));
-
-  // 구역 변경
   el.querySelectorAll('[data-dist-uid]').forEach(sel => sel.addEventListener('change', async () => {
-    await update(ref(db,'users/'+sel.dataset.distUid), { districtId: sel.value||null });
-    showToast('구역 배정됐어요');
-    await loadUserList();
+    await update(ref(db,'users/'+sel.dataset.distUid),{districtId: sel.value||null});
+    showToast('✅ 구역 배정됐어요');
   }));
-
-  // 사용자 삭제
   el.querySelectorAll('[data-del-user]').forEach(b => b.addEventListener('click', async () => {
-    if (!confirm('삭제할까요?')) return;
+    if (!confirm('멤버를 삭제할까요?')) return;
     await remove(ref(db,'users/'+b.dataset.delUser));
-    await loadUserList();
+    showToast('삭제됐어요');
+    loadMemberMgmt();
   }));
 
-  // accordion 토글
-  el.querySelectorAll('.region-acc-header').forEach(hdr => {
-    hdr.addEventListener('click', () => {
-      const acc = hdr.closest('.region-accordion');
-      const isOpen = acc.classList.toggle('open');
-      hdr.querySelector('.acc-arrow').textContent = isOpen ? '▲' : '▼';
-    });
-  });
+  // 아코디언
+  el.querySelectorAll('.region-acc-header').forEach(hdr => hdr.addEventListener('click', () => {
+    const acc = hdr.closest('.region-accordion');
+    const isOpen = acc.classList.toggle('open');
+    hdr.querySelector('.acc-arrow').textContent = isOpen ? '▲' : '▼';
+  }));
 }
 
 async function approveUser(uid) {
   const roleEl = document.getElementById('req-role-'+uid);
   const role   = roleEl ? roleEl.value : 'district_leader';
   const snap   = await get(ref(db,'requests/'+uid));
-  if (!snap.exists()) { await loadUserList(); return; }
+  if (!snap.exists()) { await loadPendingAndUnclassified(); return; }
   const u = snap.val();
   await set(ref(db,'users/'+uid), {
     email: u.email||'', name: u.name||'', nickname: u.name||'',
@@ -224,12 +265,12 @@ async function approveUser(uid) {
   });
   await remove(ref(db,'requests/'+uid));
   showToast('✅ 승인됐어요');
-  await loadUserList();
+  await loadPendingAndUnclassified();
 }
 async function rejectUser(uid) {
   if (!confirm('거절할까요?')) return;
   await remove(ref(db,'requests/'+uid));
-  loadUserList();
+  loadPendingAndUnclassified();
 }
 
 // ── 구역원 이관 승인 ──
@@ -347,15 +388,20 @@ async function loadAssignList() {
   });
 }
 
-// ── 지역·구역 관리 (SA 전용) ──
+// ── 지역·구역 관리 (회장 이상 / 임원은 구역만) ──
 export async function openDistrictMgmt() {
-  if (!isSA()) { showToast('권한이 없습니다'); return; }
+  if (!isChairman()) { showToast('권한이 없습니다'); return; }
   await loadDistrictMgmt();
   document.getElementById('modal-districts').classList.add('show');
 }
 async function loadDistrictMgmt() {
   const [rs, ds] = await Promise.all([get(ref(db,'regions')),get(ref(db,'districts'))]);
   state.regionsCache = rs.val()||{}; state.districtsCache = ds.val()||{};
+
+  // 지역 추가 입력란: 회장 이상만 표시
+  const regionAddRow = document.querySelector('#modal-districts .region-add-row');
+  if (regionAddRow) regionAddRow.style.display = isChairman() ? '' : 'none';
+
   document.getElementById('sel-new-dist-region').innerHTML =
     Object.entries(state.regionsCache).map(([rid,r]) => '<option value="'+rid+'">'+r.name+'</option>').join('')
     || '<option value="">지역을 먼저 추가하세요</option>';
@@ -363,10 +409,13 @@ async function loadDistrictMgmt() {
   const rl = document.getElementById('region-list');
   rl.innerHTML = Object.entries(state.regionsCache).map(([rid,r]) =>
     '<div class="user-row"><div class="user-info"><div class="user-name">'+r.name+'</div></div>'
-    +'<button class="btn-danger-xs" data-del-r="'+rid+'">삭제</button></div>'
+    // 지역 삭제: 회장만
+    +(isChairman() ? '<button class="btn-danger-xs" data-del-r="'+rid+'">삭제</button>' : '')
+    +'</div>'
   ).join('') || '<div style="padding:8px;color:var(--muted);font-size:.8rem">없음</div>';
 
   rl.querySelectorAll('[data-del-r]').forEach(b => b.addEventListener('click', async () => {
+    if (!isChairman()) return;
     const rid = b.dataset.delR, rName = state.regionsCache[rid]?.name || rid;
     const relDists = Object.values(state.districtsCache).filter(d => d.regionId === rid);
     const msg = relDists.length
@@ -378,11 +427,13 @@ async function loadDistrictMgmt() {
   }));
 
   const dl = document.getElementById('district-list');
-  dl.innerHTML = Object.entries(state.districtsCache).map(([did,d]) =>
-    '<div class="user-row"><div class="user-info"><div class="user-name">'+d.name+'</div>'
-    +'<div class="user-sub">'+(state.regionsCache[d.regionId]?.name||'⚠️ 지역 없음')+'</div></div>'
-    +'<button class="btn-danger-xs" data-del-d="'+did+'">삭제</button></div>'
-  ).join('') || '<div style="padding:8px;color:var(--muted);font-size:.8rem">없음</div>';
+  dl.innerHTML = Object.entries(state.districtsCache)
+    .filter(([,d]) => isChairman() || d.regionId === state.userRegionId)
+    .map(([did,d]) =>
+      '<div class="user-row"><div class="user-info"><div class="user-name">'+d.name+'</div>'
+      +'<div class="user-sub">'+(state.regionsCache[d.regionId]?.name||'⚠️ 지역 없음')+'</div></div>'
+      +'<button class="btn-danger-xs" data-del-d="'+did+'">삭제</button></div>'
+    ).join('') || '<div style="padding:8px;color:var(--muted);font-size:.8rem">없음</div>';
 
   dl.querySelectorAll('[data-del-d]').forEach(b => b.addEventListener('click', async () => {
     const did = b.dataset.delD, dName = state.districtsCache[did]?.name || did;
@@ -400,6 +451,7 @@ async function loadDistrictMgmt() {
 export function setupSettingsButtons() {
   window.closeListMgmt     = () => { document.getElementById('modal-listmgmt').classList.remove('show'); if (mgmtOnDone) mgmtOnDone(); };
   window.closeUserMgmt     = () => document.getElementById('modal-users').classList.remove('show');
+  window.closeMemberMgmt   = () => document.getElementById('modal-member-mgmt').classList.remove('show');
   window.closeAssignModal  = () => document.getElementById('modal-assign').classList.remove('show');
   window.closeDistrictMgmt = () => document.getElementById('modal-districts').classList.remove('show');
   window.closeTransferMgmt = () => document.getElementById('modal-transfer-mgmt').classList.remove('show');
@@ -414,14 +466,14 @@ export function setupSettingsButtons() {
     if (mgmtOnDone) mgmtOnDone();
   };
   window.addRegion = async () => {
-    if (!isSA()) return;
+    if (!isChairman()) return;
     const n = document.getElementById('inp-region-name').value.trim(); if (!n) return;
     await set(push(ref(db,'regions')),{name:n});
     document.getElementById('inp-region-name').value='';
     showToast('✅'); loadDistrictMgmt();
   };
   window.addDistrict = async () => {
-    if (!isSA()) return;
+    if (!isRegion()) return;
     const n = document.getElementById('inp-dist-name').value.trim();
     const rid = document.getElementById('sel-new-dist-region').value;
     if (!n||!rid){ alert('이름과 지역을 선택해주세요'); return; }
