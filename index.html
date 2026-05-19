@@ -121,7 +121,6 @@
         </div>
         <!-- 심령 단계 -->
         <div style="flex:1;min-width:0">
-          <div id="spirit-display" style="display:none"></div>
           <div class="spirit-btns">
             <button class="spirit-btn pf-editable" data-key="fly"   onclick="setSpiritLevel('fly')"   style="background:rgba(167,139,250,.18);color:#a78bfa;border-color:rgba(167,139,250,.5)">🦋 날라다녀</button>
             <button class="spirit-btn pf-editable" data-key="run"   onclick="setSpiritLevel('run')"   style="background:rgba(108,143,255,.18);color:#6c8fff;border-color:rgba(108,143,255,.5)">🏃 뛰고있어</button>
@@ -168,7 +167,8 @@
       <div class="pf-grid-3">
         <div class="pf-field"><label class="pf-label">MBTI</label><input id="pf-mbti" class="pf-input pf-editable" placeholder="예: INFP"></div>
         <div class="pf-field"><label class="pf-label">애니어그램</label><input id="pf-enneagram" class="pf-input pf-editable" placeholder="유형 번호"></div>
-        <div class="pf-field"><label class="pf-label">근무 스케줄</label><input id="pf-workSchedule" class="pf-input pf-editable" placeholder="월~목 08~18시"></div>
+        <div class="pf-field"><label class="pf-label">취미 / 특기</label><input id="pf-hobby" class="pf-input pf-editable" placeholder="예: 독서, 운동, 그림, 기타"></div>
+        <div class="pf-field full"><label class="pf-label">좋아하는 음식 / 알레르기</label><input id="pf-favoriteFood" class="pf-input pf-editable" placeholder="예: 한식 선호, 새우 알레르기"></div>
         <div class="pf-field full"><label class="pf-label">성향 · 특징</label><textarea id="pf-personality" class="pf-input pf-textarea pf-editable" placeholder="성격, 태도, 소통 방식 등"></textarea></div>
       </div>
     </div>
@@ -187,12 +187,24 @@
         <input type="hidden" id="pf-worshipLevel">
       </div>
       <div class="pf-field" style="margin-bottom:10px"><label class="pf-label">출석 패턴</label><input id="pf-worshipPattern" class="pf-input pf-editable" placeholder="주일 대면 정오 / 삼일 줌 저녁"></div>
+      <div class="pf-field" style="margin-bottom:10px">
+        <label class="pf-label">약속의 목자에 대한 믿음</label>
+        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+          <div class="level-group" style="flex-shrink:0">
+            <button class="level-btn pf-editable" data-field="pastorFaithLevel" data-val="상" onclick="setLevel('pastorFaithLevel','상')">상</button>
+            <button class="level-btn pf-editable" data-field="pastorFaithLevel" data-val="중" onclick="setLevel('pastorFaithLevel','중')">중</button>
+            <button class="level-btn pf-editable" data-field="pastorFaithLevel" data-val="하" onclick="setLevel('pastorFaithLevel','하')">하</button>
+          </div>
+          <input id="pf-pastorFaithLevelNote" class="pf-input pf-editable" placeholder="근거" style="flex:1;min-width:120px">
+        </div>
+        <input type="hidden" id="pf-pastorFaithLevel">
+      </div>
       <div class="pf-field"><label class="pf-label">헌금 메모</label><textarea id="pf-offeringNote" class="pf-input pf-textarea pf-editable" placeholder="헌금 방식, 재정 특이사항 등"></textarea></div>
     </div>
     <div class="profile-section">
       <div class="profile-section-title">📖 신앙 상태</div>
       <div class="pf-field" style="margin-bottom:10px">
-        <label class="pf-label">신앙 수준</label>
+        <label class="pf-label">신앙 종합수준</label>
         <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
           <div class="level-group" style="flex-shrink:0">
             <button class="level-btn pf-editable" data-field="faithLevel" data-val="상" onclick="setLevel('faithLevel','상')">상</button>
@@ -203,10 +215,7 @@
         </div>
         <input type="hidden" id="pf-faithLevel">
       </div>
-      <div class="pf-field"><label class="pf-label">신앙 특징 · 태도</label><textarea id="pf-faithNote" class="pf-input pf-textarea pf-editable" placeholder="믿음 상태, 신앙 태도 등"></textarea></div>
-    </div>
-    <div class="profile-section">
-      <div class="profile-section-title">🎓 교육</div>
+      <div class="pf-field" style="margin-bottom:10px"><label class="pf-label">신앙 특징 · 태도</label><textarea id="pf-faithNote" class="pf-input pf-textarea pf-editable" placeholder="믿음 상태, 신앙 태도 등"></textarea></div>
       <div class="pf-field" style="margin-bottom:10px">
         <label class="pf-label">교육 참여</label>
         <div class="level-group">
@@ -216,14 +225,26 @@
         </div>
         <input type="hidden" id="pf-eduLevel">
       </div>
-      <div class="pf-field"><label class="pf-label">교육 현황 · 방향</label><textarea id="pf-eduNote" class="pf-input pf-textarea pf-editable" placeholder="이수 교육, 진행 중, 방향 등"></textarea></div>
+      <div class="pf-field" style="margin-bottom:10px"><label class="pf-label">교육 현황 · 방향</label><textarea id="pf-eduNote" class="pf-input pf-textarea pf-editable" placeholder="이수 교육, 진행 중, 방향 등"></textarea></div>
+      <div class="pf-field" style="margin-bottom:10px">
+        <label class="pf-label">전도 활동</label>
+        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+          <div class="level-group" style="flex-shrink:0">
+            <button class="level-btn pf-editable" data-field="evangelismLevel" data-val="상" onclick="setLevel('evangelismLevel','상')">상</button>
+            <button class="level-btn pf-editable" data-field="evangelismLevel" data-val="중" onclick="setLevel('evangelismLevel','중')">중</button>
+            <button class="level-btn pf-editable" data-field="evangelismLevel" data-val="하" onclick="setLevel('evangelismLevel','하')">하</button>
+          </div>
+          <input id="pf-evangelismLevelNote" class="pf-input pf-editable" placeholder="근거" style="flex:1;min-width:120px">
+        </div>
+        <input type="hidden" id="pf-evangelismLevel">
+      </div>
     </div>
     <div class="profile-section">
       <div class="profile-section-title">🏠 생활 환경</div>
       <div class="pf-grid">
         <div class="pf-field full"><label class="pf-label">가족 구성</label><textarea id="pf-familyNote" class="pf-input pf-textarea pf-editable" placeholder="동거 가족, 상황, 특이사항 등"></textarea></div>
         <div class="pf-field full"><label class="pf-label">경제 상황</label><textarea id="pf-economicNote" class="pf-input pf-textarea pf-editable" placeholder="재정 환경 등"></textarea></div>
-        <div class="pf-field full"><label class="pf-label">전도</label><textarea id="pf-evangelismNote" class="pf-input pf-textarea pf-editable" placeholder="전도 가능 지인, 경험 등"></textarea></div>
+        <div class="pf-field full"><label class="pf-label">근무 스케줄</label><input id="pf-workSchedule" class="pf-input pf-editable" placeholder="예: 월~목 08~18시, 재택 가능"></div>
       </div>
     </div>
     <div class="profile-section">
@@ -237,6 +258,10 @@
     </div>
     <div class="profile-section">
       <div class="profile-section-title">🔗 지체 관계</div>
+      <div class="pf-field" style="margin-bottom:10px">
+        <label class="pf-label">센터 기수</label>
+        <input id="pf-centerClass" class="pf-input pf-editable" placeholder="예: 17기" style="max-width:160px">
+      </div>
       <div id="rel-section-body"></div>
     </div>
     <div class="profile-section">
